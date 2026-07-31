@@ -1,1 +1,1775 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width,
+initial-scale=1.0,
+maximum-scale=1.0,
+user-scalable=no">
+
+<title>Mobile FPS - Part 1</title>
+
+<style>
+
+* {
+    box-sizing: border-box;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: Arial, sans-serif;
+    touch-action: none;
+}
+
+#game {
+    position: fixed;
+    inset: 0;
+}
+
+canvas {
+    display: block;
+}
+
+/* -------------------------
+   HUD
+------------------------- */
+
+#hud {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 10;
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px black;
+}
+
+#healthBar {
+    width: 180px;
+    height: 18px;
+    border: 2px solid white;
+    background: #333;
+    margin-top: 5px;
+}
+
+#healthFill {
+    height: 100%;
+    width: 100%;
+    background: #00ff00;
+}
+
+#ammo {
+    margin-top: 8px;
+}
+
+/* -------------------------
+   Crosshair
+------------------------- */
+
+#crosshair {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    text-shadow: 0 0 5px black;
+    pointer-events: none;
+}
+
+/* -------------------------
+   Joystick
+------------------------- */
+
+#joystick {
+    position: fixed;
+    left: 25px;
+    bottom: 25px;
+
+    width: 130px;
+    height: 130px;
+
+    border-radius: 50%;
+
+    background: rgba(255,255,255,0.18);
+
+    border: 2px solid rgba(255,255,255,0.4);
+
+    z-index: 20;
+}
+
+#joystickKnob {
+    position: absolute;
+
+    left: 40px;
+    top: 40px;
+
+    width: 50px;
+    height: 50px;
+
+    border-radius: 50%;
+
+    background: rgba(255,255,255,0.55);
+
+    pointer-events: none;
+}
+
+/* -------------------------
+   Buttons
+------------------------- */
+
+#shootButton {
+
+    position: fixed;
+
+    right: 25px;
+    bottom: 40px;
+
+    width: 90px;
+    height: 90px;
+
+    border-radius: 50%;
+
+    border: 3px solid white;
+
+    background: rgba(255,0,0,0.65);
+
+    color: white;
+
+    font-size: 18px;
+    font-weight: bold;
+
+    z-index: 20;
+}
+
+#reloadButton {
+
+    position: fixed;
+
+    right: 35px;
+    bottom: 145px;
+
+    width: 70px;
+    height: 45px;
+
+    border-radius: 10px;
+
+    border: 2px solid white;
+
+    background: rgba(0,0,0,0.65);
+
+    color: white;
+
+    font-weight: bold;
+
+    z-index: 20;
+}
+
+/* -------------------------
+   Message
+------------------------- */
+
+#message {
+
+    position: fixed;
+
+    top: 50%;
+    left: 50%;
+
+    transform: translate(-50%, -50%);
+
+    color: white;
+
+    font-size: 36px;
+
+    font-weight: bold;
+
+    text-align: center;
+
+    text-shadow: 3px 3px 8px black;
+
+    z-index: 50;
+
+    display: none;
+}
+
+</style>
+</head>
+
+
+<body>
+
+
+<div id="game"></div>
+
+
+<div id="hud">
+
+    HEALTH
+
+    <div id="healthBar">
+        <div id="healthFill"></div>
+    </div>
+
+    <div id="ammo">
+        AMMO: <span id="ammoCount">30</span> / 120
+    </div>
+
+</div>
+
+
+<div id="crosshair">
+    +
+</div>
+
+
+<div id="joystick">
+
+    <div id="joystickKnob"></div>
+
+</div>
+
+
+<button id="reloadButton">
+    RELOAD
+</button>
+
+
+<button id="shootButton">
+    FIRE
+</button>
+
+
+<div id="message">
+    GAME OVER
+</div>
+
+
+<script type="module">
+
+import * as THREE from
+"https://cdn.jsdelivr.net/npm/three@0.177.0/build/three.module.js";
+
+
+// =====================================================
+// GAME VARIABLES
+// =====================================================
+
+let scene;
+let camera;
+let renderer;
+
+let player;
+
+let enemy;
+
+let health = 100;
+
+let ammo = 30;
+
+let reserveAmmo = 120;
+
+const maxAmmo = 30;
+
+let enemyHealth = 100;
+
+let enemyAlive = true;
+
+let gameOver = false;
+
+
+// Movement
+
+let joystickX = 0;
+
+let joystickY = 0;
+
+
+// Camera rotation
+
+let yaw = 0;
+
+let pitch = 0;
+
+
+// Touch aiming
+
+let aimTouch = null;
+
+let lastAimX = 0;
+
+let lastAimY = 0;
+
+
+// =====================================================
+// INITIALIZE GAME
+// =====================================================
+
+function init() {
+
+    // -----------------------------
+    // Scene
+    // -----------------------------
+
+    scene = new THREE.Scene();
+
+    scene.background =
+        new THREE.Color(0x87CEEB);
+
+
+    // -----------------------------
+    // Camera
+    // -----------------------------
+
+    camera =
+        new THREE.PerspectiveCamera(
+
+            75,
+
+            window.innerWidth /
+            window.innerHeight,
+
+            0.1,
+
+            1000
+
+        );
+
+
+    // -----------------------------
+    // Renderer
+    // -----------------------------
+
+    renderer =
+        new THREE.WebGLRenderer({
+
+            antialias: true
+
+        });
+
+
+    renderer.setPixelRatio(
+        Math.min(
+            window.devicePixelRatio,
+            2
+        )
+    );
+
+
+    renderer.setSize(
+
+        window.innerWidth,
+
+        window.innerHeight
+
+    );
+
+
+    document
+        .getElementById("game")
+        .appendChild(
+            renderer.domElement
+        );
+
+
+    // -----------------------------
+    // Lighting
+    // -----------------------------
+
+    const ambient =
+        new THREE.AmbientLight(
+
+            0xffffff,
+
+            1.5
+
+        );
+
+
+    scene.add(
+        ambient
+    );
+
+
+    const sunlight =
+        new THREE.DirectionalLight(
+
+            0xffffff,
+
+            2
+
+        );
+
+
+    sunlight.position.set(
+
+        20,
+
+        30,
+
+        10
+
+    );
+
+
+    scene.add(
+        sunlight
+    );
+
+
+    // -----------------------------
+    // Player
+    // -----------------------------
+
+    player =
+        new THREE.Object3D();
+
+
+    player.position.set(
+
+        0,
+
+        1.7,
+
+        8
+
+    );
+
+
+    scene.add(
+        player
+    );
+
+
+    player.add(
+        camera
+    );
+
+
+    camera.position.set(
+
+        0,
+
+        0,
+
+        0
+
+    );
+
+
+    // -----------------------------
+    // World
+    // -----------------------------
+
+    createWorld();
+
+
+    // -----------------------------
+    // Enemy
+    // -----------------------------
+
+    createEnemy();
+
+
+    // -----------------------------
+    // Controls
+    // -----------------------------
+
+    setupJoystick();
+
+    setupAiming();
+
+    setupButtons();
+
+
+    // -----------------------------
+    // Resize
+    // -----------------------------
+
+    window.addEventListener(
+
+        "resize",
+
+        resize
+
+    );
+
+
+    // -----------------------------
+    // Start
+    // -----------------------------
+
+    animate();
+
+}
+
+
+// =====================================================
+// CREATE WORLD
+// =====================================================
+
+function createWorld() {
+
+
+    // Ground
+
+    const groundGeometry =
+        new THREE.PlaneGeometry(
+
+            100,
+
+            100
+
+        );
+
+
+    const groundMaterial =
+        new THREE.MeshStandardMaterial({
+
+            color: 0x3a8f3a
+
+        });
+
+
+    const ground =
+        new THREE.Mesh(
+
+            groundGeometry,
+
+            groundMaterial
+
+        );
+
+
+    ground.rotation.x =
+        -Math.PI / 2;
+
+
+    scene.add(
+        ground
+    );
+
+
+    // -----------------------------
+    // Walls
+    // -----------------------------
+
+    createWall(
+
+        0,
+        -25,
+        50,
+        1,
+        5
+
+    );
+
+
+    createWall(
+
+        0,
+        25,
+        50,
+        1,
+        5
+
+    );
+
+
+    createWall(
+
+        -25,
+        0,
+        1,
+        50,
+        5
+
+    );
+
+
+    createWall(
+
+        25,
+        0,
+        1,
+        50,
+        5
+
+    );
+
+
+    // -----------------------------
+    // Cover
+    // -----------------------------
+
+    createWall(
+
+        -8,
+        0,
+        3,
+        10,
+        2
+
+    );
+
+
+    createWall(
+
+        8,
+        -5,
+        3,
+        10,
+        2
+
+    );
+
+
+    createWall(
+
+        0,
+        -10,
+        10,
+        3,
+        2
+
+    );
+
+}
+
+
+// =====================================================
+// CREATE WALL
+// =====================================================
+
+function createWall(
+
+    x,
+
+    z,
+
+    width,
+
+    depth,
+
+    height
+
+) {
+
+
+    const geometry =
+        new THREE.BoxGeometry(
+
+            width,
+
+            height,
+
+            depth
+
+        );
+
+
+    const material =
+        new THREE.MeshStandardMaterial({
+
+            color: 0x777777
+
+        });
+
+
+    const wall =
+        new THREE.Mesh(
+
+            geometry,
+
+            material
+
+        );
+
+
+    wall.position.set(
+
+        x,
+
+        height / 2,
+
+        z
+
+    );
+
+
+    scene.add(
+        wall
+
+    );
+
+}
+
+
+// =====================================================
+// CREATE ENEMY
+// =====================================================
+
+function createEnemy() {
+
+
+    const geometry =
+        new THREE.BoxGeometry(
+
+            1.5,
+
+            2,
+
+            1.5
+
+        );
+
+
+    const material =
+        new THREE.MeshStandardMaterial({
+
+            color: 0xff2222
+
+        });
+
+
+    enemy =
+        new THREE.Mesh(
+
+            geometry,
+
+            material
+
+        );
+
+
+    enemy.position.set(
+
+        0,
+
+        1,
+
+        -12
+
+    );
+
+
+    scene.add(
+        enemy
+
+    );
+
+}
+
+
+// =====================================================
+// JOYSTICK
+// =====================================================
+
+function setupJoystick() {
+
+
+    const joystick =
+        document.getElementById(
+
+            "joystick"
+
+        );
+
+
+    const knob =
+        document.getElementById(
+
+            "joystickKnob"
+
+        );
+
+
+    joystick.addEventListener(
+
+        "touchstart",
+
+        function(event) {
+
+            event.preventDefault();
+
+        },
+
+        { passive: false }
+
+    );
+
+
+    joystick.addEventListener(
+
+        "touchmove",
+
+        function(event) {
+
+            event.preventDefault();
+
+
+            const touch =
+                event.touches[0];
+
+
+            const rect =
+                joystick.getBoundingClientRect();
+
+
+            const centerX =
+                rect.left +
+                rect.width / 2;
+
+
+            const centerY =
+                rect.top +
+                rect.height / 2;
+
+
+            let x =
+                touch.clientX -
+                centerX;
+
+
+            let y =
+                touch.clientY -
+                centerY;
+
+
+            const distance =
+                Math.sqrt(
+
+                    x * x +
+                    y * y
+
+                );
+
+
+            const maxDistance = 40;
+
+
+            if (
+                distance >
+                maxDistance
+            ) {
+
+                x =
+                    x /
+                    distance *
+                    maxDistance;
+
+
+                y =
+                    y /
+                    distance *
+                    maxDistance;
+
+            }
+
+
+            joystickX =
+                x /
+                maxDistance;
+
+
+            joystickY =
+                y /
+                maxDistance;
+
+
+            knob.style.transform =
+
+                `translate(${x}px, ${y}px)`;
+
+        },
+
+        { passive: false }
+
+    );
+
+
+    joystick.addEventListener(
+
+        "touchend",
+
+        function() {
+
+
+            joystickX = 0;
+
+            joystickY = 0;
+
+
+            knob.style.transform =
+
+                "translate(0px, 0px)";
+
+        }
+
+    );
+
+}
+
+
+// =====================================================
+// TOUCH AIMING
+// =====================================================
+
+function setupAiming() {
+
+
+    renderer.domElement.addEventListener(
+
+        "touchstart",
+
+        function(event) {
+
+
+            if (
+                event.touches.length === 1
+            ) {
+
+
+                const touch =
+                    event.touches[0];
+
+
+                if (
+                    touch.clientX >
+                    window.innerWidth / 2
+                ) {
+
+
+                    aimTouch =
+                        touch.identifier;
+
+
+                    lastAimX =
+                        touch.clientX;
+
+
+                    lastAimY =
+                        touch.clientY;
+
+                }
+
+            }
+
+        }
+
+    );
+
+
+    renderer.domElement.addEventListener(
+
+        "touchmove",
+
+        function(event) {
+
+
+            for (
+                const touch
+                of event.changedTouches
+            ) {
+
+
+                if (
+                    touch.identifier ===
+                    aimTouch
+                ) {
+
+
+                    const deltaX =
+
+                        touch.clientX -
+                        lastAimX;
+
+
+                    const deltaY =
+
+                        touch.clientY -
+                        lastAimY;
+
+
+                    yaw -=
+
+                        deltaX *
+                        0.004;
+
+
+                    pitch -=
+
+                        deltaY *
+                        0.004;
+
+
+                    pitch =
+
+                        Math.max(
+
+                            -1.4,
+
+                            Math.min(
+
+                                1.4,
+
+                                pitch
+
+                            )
+
+                        );
+
+
+                    player.rotation.y =
+                        yaw;
+
+
+                    camera.rotation.x =
+                        pitch;
+
+
+                    lastAimX =
+                        touch.clientX;
+
+
+                    lastAimY =
+                        touch.clientY;
+
+                }
+
+            }
+
+        }
+
+    );
+
+
+    renderer.domElement.addEventListener(
+
+        "touchend",
+
+        function(event) {
+
+
+            for (
+                const touch
+                of event.changedTouches
+            ) {
+
+
+                if (
+                    touch.identifier ===
+                    aimTouch
+                ) {
+
+
+                    aimTouch =
+                        null;
+
+                }
+
+            }
+
+        }
+
+    );
+
+}
+
+
+// =====================================================
+// BUTTONS
+// =====================================================
+
+function setupButtons() {
+
+
+    const shootButton =
+        document.getElementById(
+
+            "shootButton"
+
+        );
+
+
+    const reloadButton =
+        document.getElementById(
+
+            "reloadButton"
+
+        );
+
+
+    shootButton.addEventListener(
+
+        "touchstart",
+
+        function(event) {
+
+            event.preventDefault();
+
+            shoot();
+
+        },
+
+        { passive: false }
+
+    );
+
+
+    reloadButton.addEventListener(
+
+        "touchstart",
+
+        function(event) {
+
+            event.preventDefault();
+
+            reload();
+
+        },
+
+        { passive: false }
+
+    );
+
+}
+
+
+// =====================================================
+// SHOOTING
+// =====================================================
+
+function shoot() {
+
+
+    if (gameOver)
+        return;
+
+
+    if (ammo <= 0) {
+
+        return;
+
+    }
+
+
+    ammo--;
+
+
+    updateHUD();
+
+
+    // -----------------------------
+    // Raycast
+    // -----------------------------
+
+    const raycaster =
+        new THREE.Raycaster();
+
+
+    raycaster.setFromCamera(
+
+        new THREE.Vector2(
+
+            0,
+
+            0
+
+        ),
+
+        camera
+
+    );
+
+
+    const hits =
+        raycaster.intersectObject(
+
+            enemy
+
+        );
+
+
+    if (
+        hits.length > 0 &&
+        enemyAlive
+    ) {
+
+
+        enemyHealth -= 25;
+
+
+        // Flash enemy
+
+        enemy.material.color.set(
+
+            0xffffff
+
+        );
+
+
+        setTimeout(
+
+            function() {
+
+                if (enemyAlive) {
+
+                    enemy.material.color.set(
+
+                        0xff2222
+
+                    );
+
+                }
+
+            },
+
+            100
+
+        );
+
+
+        if (
+            enemyHealth <= 0
+        ) {
+
+
+            enemyAlive =
+                false;
+
+
+            scene.remove(
+                enemy
+            );
+
+
+            document.getElementById(
+
+                "message"
+
+            ).innerHTML =
+
+                "ENEMY ELIMINATED!";
+
+
+            document.getElementById(
+
+                "message"
+
+            ).style.display =
+
+                "block";
+
+        }
+
+    }
+
+}
+
+
+// =====================================================
+// RELOAD
+// =====================================================
+
+function reload() {
+
+
+    if (gameOver)
+        return;
+
+
+    const needed =
+        maxAmmo -
+        ammo;
+
+
+    if (
+        reserveAmmo <= 0
+    ) {
+
+        return;
+
+    }
+
+
+    const amount =
+
+        Math.min(
+
+            needed,
+
+            reserveAmmo
+
+        );
+
+
+    ammo +=
+        amount;
+
+
+    reserveAmmo -=
+        amount;
+
+
+    updateHUD();
+
+}
+
+
+// =====================================================
+// ENEMY AI
+// =====================================================
+
+function updateEnemy(
+    delta
+) {
+
+
+    if (
+        !enemyAlive ||
+        gameOver
+    )
+        return;
+
+
+    const direction =
+        new THREE.Vector3();
+
+
+    direction.subVectors(
+
+        player.position,
+
+        enemy.position
+
+    );
+
+
+    direction.y = 0;
+
+
+    const distance =
+        direction.length();
+
+
+    // Move toward player
+
+    if (
+        distance > 3
+    ) {
+
+
+        direction.normalize();
+
+
+        enemy.position.add(
+
+            direction.multiplyScalar(
+
+                delta * 1.5
+
+            )
+
+        );
+
+    }
+
+
+    // Attack player
+
+    if (
+        distance < 3
+    ) {
+
+
+        health -=
+            delta *
+            10;
+
+
+        updateHUD();
+
+
+        if (
+            health <= 0
+        ) {
+
+
+            health = 0;
+
+
+            gameOver =
+                true;
+
+
+            document.getElementById(
+
+                "message"
+
+            ).innerHTML =
+
+                "GAME OVER<br><small>Refresh to restart</small>";
+
+
+            document.getElementById(
+
+                "message"
+
+            ).style.display =
+
+                "block";
+
+        }
+
+    }
+
+}
+
+
+// =====================================================
+// PLAYER MOVEMENT
+// =====================================================
+
+function updatePlayer(
+    delta
+) {
+
+
+    if (gameOver)
+        return;
+
+
+    const speed =
+        5;
+
+
+    const forward =
+        new THREE.Vector3(
+
+            0,
+
+            0,
+
+            -1
+
+        );
+
+
+    const right =
+        new THREE.Vector3(
+
+            1,
+
+            0,
+
+            0
+
+        );
+
+
+    forward.applyQuaternion(
+
+        player.quaternion
+
+    );
+
+
+    right.applyQuaternion(
+
+        player.quaternion
+
+    );
+
+
+    forward.y = 0;
+
+    right.y = 0;
+
+
+    forward.normalize();
+
+    right.normalize();
+
+
+    const movement =
+        new THREE.Vector3();
+
+
+    movement.add(
+
+        forward.multiplyScalar(
+
+            -joystickY
+
+        )
+
+    );
+
+
+    movement.add(
+
+        right.multiplyScalar(
+
+            joystickX
+
+        )
+
+    );
+
+
+    if (
+        movement.length() > 0
+    ) {
+
+
+        movement.normalize();
+
+
+        const oldPosition =
+
+            player.position.clone();
+
+
+        player.position.add(
+
+            movement.multiplyScalar(
+
+                speed *
+                delta
+
+            )
+
+        );
+
+
+        // -----------------------------
+        // Keep player inside map
+        // -----------------------------
+
+        player.position.x =
+
+            Math.max(
+
+                -23,
+
+                Math.min(
+
+                    23,
+
+                    player.position.x
+
+                )
+
+            );
+
+
+        player.position.z =
+
+            Math.max(
+
+                -23,
+
+                Math.min(
+
+                    23,
+
+                    player.position.z
+
+                )
+
+            );
+
+    }
+
+}
+
+
+// =====================================================
+// HUD
+// =====================================================
+
+function updateHUD() {
+
+
+    document.getElementById(
+
+        "ammoCount"
+
+    ).textContent =
+
+        ammo;
+
+
+    document.getElementById(
+
+        "healthFill"
+
+    ).style.width =
+
+        health + "%";
+
+
+    if (
+        health > 60
+    ) {
+
+
+        document.getElementById(
+
+            "healthFill"
+
+        ).style.background =
+
+            "#00ff00";
+
+    }
+
+
+    else if (
+        health > 30
+    ) {
+
+
+        document.getElementById(
+
+            "healthFill"
+
+        ).style.background =
+
+            "#ffff00";
+
+    }
+
+
+    else {
+
+
+        document.getElementById(
+
+            "healthFill"
+
+        ).style.background =
+
+            "#ff0000";
+
+    }
+
+}
+
+
+// =====================================================
+// RESIZE
+// =====================================================
+
+function resize() {
+
+
+    camera.aspect =
+
+        window.innerWidth /
+        window.innerHeight;
+
+
+    camera.updateProjectionMatrix();
+
+
+    renderer.setSize(
+
+        window.innerWidth,
+
+        window.innerHeight
+
+    );
+
+}
+
+
+// =====================================================
+// GAME LOOP
+// =====================================================
+
+let lastTime =
+    performance.now();
+
+
+function animate() {
+
+
+    requestAnimationFrame(
+
+        animate
+
+    );
+
+
+    const currentTime =
+
+        performance.now();
+
+
+    const delta =
+
+        Math.min(
+
+            (currentTime -
+            lastTime) /
+            1000,
+
+            0.1
+
+        );
+
+
+    lastTime =
+        currentTime;
+
+
+    updatePlayer(
+        delta
+    );
+
+
+    updateEnemy(
+        delta
+    );
+
+
+    renderer.render(
+
+        scene,
+
+        camera
+
+    );
+
+}
+
+
+// =====================================================
+// START
+// =====================================================
+
+init();
+
+updateHUD();
+
+</script>
+
+</body>
+</html>
+```
 
