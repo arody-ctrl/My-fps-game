@@ -3285,9 +3285,121 @@ function setupControls(){
 
             e.preventDefault();
 
-            toggleADS();
+            /* =====================================================
+   ADS
+===================================================== */
 
-        },
+function toggleADS(){
+
+    if(gameOver)return;
+
+    isADS=!isADS;
+
+    let weapon=
+        weapons[currentWeapon];
+
+
+    if(isADS){
+
+        camera.fov=
+            weapon.adsFOV;
+
+        camera.updateProjectionMatrix();
+
+
+        /*
+           SNIPER ADS
+        */
+
+        if(
+            currentWeapon==="SNIPER"
+        ){
+
+            document.getElementById(
+                "scopeOverlay"
+            ).style.display=
+                "block";
+
+            document.getElementById(
+                "crosshair"
+            ).style.display=
+                "none";
+
+
+            /*
+               Hide the physical sniper
+               scope so it doesn't appear
+               over the scope overlay.
+            */
+
+            if(gunModel){
+
+                let physicalScope=
+                    gunModel.getObjectByName(
+                        "sniperScope"
+                    );
+
+                if(physicalScope){
+
+                    physicalScope.visible=
+                        false;
+
+                }
+
+            }
+
+        }
+
+    }
+
+    else{
+
+        camera.fov=
+            weapon.normalFOV;
+
+        camera.updateProjectionMatrix();
+
+
+        document.getElementById(
+            "scopeOverlay"
+        ).style.display=
+            "none";
+
+        document.getElementById(
+            "crosshair"
+        ).style.display=
+            "block";
+
+
+        /*
+           Show physical sniper scope
+           again after leaving ADS.
+        */
+
+        if(
+            currentWeapon==="SNIPER"&&
+            gunModel
+        ){
+
+            let physicalScope=
+                gunModel.getObjectByName(
+                    "sniperScope"
+                );
+
+            if(physicalScope){
+
+                physicalScope.visible=
+                    true;
+
+            }
+
+        }
+
+    }
+
+    updateWeaponHUD();
+
+}
         {
             passive:false
         }
