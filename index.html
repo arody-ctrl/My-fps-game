@@ -2420,20 +2420,171 @@ function shoot() {
        CREATE PROJECTILE
     ========================================= */
 
-    createProjectile(
+    function createProjectile(
+    start,
+    direction,
+    playerProjectile,
+    damage = 25,
+    speed = 70,
+    life = 4
+) {
 
-        start,
+    /* =========================
+       BULLET
+    ========================= */
 
-        direction,
+    let bulletGeometry =
+        new THREE.SphereGeometry(
+            0.22,
+            12,
+            12
+        );
 
-        true,
+    let bulletMaterial =
+        new THREE.MeshBasicMaterial({
 
-        weapon.damage,
+            color:
+                playerProjectile
+                ? 0xffff00
+                : 0xff0000
 
-        weapon.projectileSpeed,
+        });
 
-        weapon.projectileLife
+    let bullet =
+        new THREE.Mesh(
+            bulletGeometry,
+            bulletMaterial
+        );
 
+
+    /* =========================
+       START POSITION
+    ========================= */
+
+    bullet.position.copy(
+        start
+    );
+
+
+    /* =========================
+       DIRECTION
+    ========================= */
+
+    bullet.direction =
+        direction
+        .clone()
+        .normalize();
+
+
+    /* =========================
+       BULLET SPEED
+    ========================= */
+
+    bullet.speed =
+        speed;
+
+
+    /* =========================
+       BULLET LIFETIME
+    ========================= */
+
+    bullet.life =
+        life;
+
+
+    /* =========================
+       PLAYER OR ENEMY
+    ========================= */
+
+    bullet.playerProjectile =
+        playerProjectile;
+
+
+    /* =========================
+       DAMAGE
+    ========================= */
+
+    bullet.damage =
+        damage;
+
+
+    /* =========================
+       GLOWING TRAIL
+    ========================= */
+
+    let trailGeometry =
+        new THREE.CylinderGeometry(
+            0.05,
+            0.05,
+            1.5,
+            8
+        );
+
+    let trailMaterial =
+        new THREE.MeshBasicMaterial({
+
+            color:
+                playerProjectile
+                ? 0xff8800
+                : 0xff0000
+
+        });
+
+    let trail =
+        new THREE.Mesh(
+            trailGeometry,
+            trailMaterial
+        );
+
+
+    /* =========================
+       ALIGN TRAIL WITH BULLET
+    ========================= */
+
+    trail.quaternion.setFromUnitVectors(
+
+        new THREE.Vector3(
+            0,
+            1,
+            0
+        ),
+
+        bullet.direction
+
+    );
+
+
+    /* =========================
+       PLACE TRAIL BEHIND BULLET
+    ========================= */
+
+    trail.position.copy(
+        bullet.direction
+            .clone()
+            .multiplyScalar(-0.75)
+    );
+
+
+    bullet.add(
+        trail
+    );
+
+
+    /* =========================
+       ADD TO SCENE
+    ========================= */
+
+    scene.add(
+        bullet
+    );
+
+
+    /* =========================
+       SAVE PROJECTILE
+    ========================= */
+
+    projectiles.push(
+        bullet
     );
 
 }
