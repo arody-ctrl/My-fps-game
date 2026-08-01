@@ -102,7 +102,7 @@ canvas {
 }
 
 /* =========================
-   CROSSHAIR
+   SINGLE CENTER CROSSHAIR
 ========================= */
 
 #crosshair {
@@ -116,26 +116,30 @@ canvas {
     z-index: 5;
 }
 
-#crosshair::before,
-#crosshair::after {
+/* Horizontal line */
+#crosshair::before {
     content: "";
     position: absolute;
+    width: 24px;
+    height: 3px;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
     background: white;
     box-shadow: 0 0 3px black;
 }
 
-#crosshair::before {
-    width: 24px;
-    height: 3px;
-    top: 10.5px;
-    left: 0;
-}
-
+/* Vertical line */
 #crosshair::after {
+    content: "";
+    position: absolute;
     width: 3px;
     height: 24px;
+    left: 50%;
     top: 0;
-    left: 10.5px;
+    transform: translateX(-50%);
+    background: white;
+    box-shadow: 0 0 3px black;
 }
 
 /* =========================
