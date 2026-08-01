@@ -2277,147 +2277,195 @@ function movePlayer(delta) {
    SHOOTING
 ===================================================== */
 
-    /* =====================================================
-   SHOOTING + PROJECTILE + HIT DETECTION REBUILD
-===================================================== */
+    function shoot() {
 
-function shoot() {
+```
+if (gameOver)
+    return;
 
-    if (gameOver)
-        return;
+let weapon = weapons[currentWeapon];
 
-    let weapon = weapons[currentWeapon];
+let now = performance.now();
 
-    let now = performance.now();
+/* FIRE RATE */
+if (
+    now - lastPlayerShot <
+    weapon.fireRate
+) {
+    return;
+}
 
-    /* FIRE RATE */
-    if (
-        now - lastPlayerShot <
-        weapon.fireRate
-    ) {
-        return;
-    }
+/* NO AMMO */
+if (weapon.ammo <= 0) {
 
-    /* NO AMMO */
-    if (weapon.ammo <= 0) {
+    reload();
 
-        reload();
+    return;
 
-        return;
+}
 
-    }
+lastPlayerShot = now;
 
-    lastPlayerShot = now;
+weapon.ammo--;
 
-    weapon.ammo--;
+fireGunAnimation();
 
-    fireGunAnimation();
-
-    updateWeaponHUD();
+updateWeaponHUD();
 
 
-    /* =================================================
-       1. GET EXACT CENTER OF SCREEN
-    ================================================= */
+/* =================================================
+   AIM DIRECTION
+   
+   The ray is created from the EXACT CENTER
+   of the camera. This guarantees the projectile
+   follows the crosshair.
+================================================= */
 
-    let screenCenter =
-        new THREE.Vector2(
-            0,
-            0
-        );
+let screenCenter =
+    new THREE.Vector2(0, 0);
+
+let raycaster =
+    new THREE.Raycaster();
+
+raycaster.setFromCamera(
+    screenCenter,
+    camera
+);
 
 
-    /* =================================================
-       2. RAYCAST FROM CAMERA THROUGH CROSSHAIR
-       
-       THREE.JS NDC:
-       X = 0
-       Y = 0
+/* =================================================
+   GET CAMERA AIM DIRECTION
+================================================= */
 
-       This is the exact center of the screen.
-    ================================================= */
+let direction =
+    raycaster.ray.direction
+        .clone()
+        .normalize();
 
-    let raycaster =
-        new THREE.Raycaster();
 
-    raycaster.setFromCamera(
-        screenCenter,
-        camera
+/* =================================================
+   APPLY WEAPON SPREAD
+================================================= */
+
+if (weapon.spread > 0) {
+
+    direction.x +=
+        (Math.random() - 0.5) *
+        weapon.spread;
+
+    direction.y +=
+        (Math.random() - 0.5) *
+        weapon.spread;
+
+    direction.z +=
+        (Math.random() - 0.5) *
+        weapon.spread;
+
+    direction.normalize();
+
+}
+
+
+/* =================================================
+   FIND MUZZLE POSITION
+   
+   The bullet starts at the actual gun muzzle
+   instead of the camera.
+================================================= */
+
+let muzzleWorld =
+    new THREE.Vector3();
+
+
+/* Approximate muzzle position
+   based on weapon model */
+
+let muzzleLocal =
+    new THREE.Vector3(
+        0,
+        0,
+        -1.25
     );
 
 
-    /* =================================================
-       3. GET CAMERA WORLD POSITION
-    ================================================= */
+if (currentWeapon === "AR") {
 
-    let start =
-        new THREE.Vector3();
-
-    camera.getWorldPosition(
-        start
-    );
-
-
-    /* =================================================
-       4. GET AIM DIRECTION
-    ================================================= */
-
-    let direction =
-        raycaster.ray.direction.clone();
-
-
-    /* =================================================
-       5. APPLY WEAPON SPREAD
-    ================================================= */
-
-    if (
-        weapon.spread > 0
-    ) {
-
-        direction.x +=
-            (
-                Math.random() - 0.5
-            ) *
-            weapon.spread;
-
-        direction.y +=
-            (
-                Math.random() - 0.5
-            ) *
-            weapon.spread;
-
-        direction.z +=
-            (
-                Math.random() - 0.5
-            ) *
-            weapon.spread;
-
-        direction.normalize();
-
-    }
-
-
-    /* =================================================
-       6. CREATE VISIBLE PROJECTILE
-    ================================================= */
-
-    createProjectile(
-
-        start,
-
-        direction,
-
-        true,
-
-        weapon.damage,
-
-        weapon.projectileSpeed,
-
-        weapon.projectileLife
-
+    muzzleLocal.set(
+        0,
+        0,
+        -1.45
     );
 
 }
+
+else if (currentWeapon === "SMG") {
+
+    muzzleLocal.set(
+        0,
+        0,
+        -1.05
+    );
+
+}
+
+else if (currentWeapon === "PISTOL") {
+
+    muzzleLocal.set(
+        0,
+        0,
+        -0.9
+    );
+
+}
+
+else if (currentWeapon === "SNIPER") {
+
+    muzzleLocal.set(
+        0,
+        0,
+        -2.25
+    );
+
+}
+
+
+gunModel.localToWorld(
+    muzzleWorld.copy(
+        muzzleLocal
+    )
+);
+
+
+/* =================================================
+   IMPORTANT:
+   
+   The bullet starts at the muzzle but uses the
+   camera's center-screen aim direction.
+   
+   This fixes the bullet visually spawning from
+   the gun while still aiming at the crosshair.
+================================================= */
+
+createProjectile(
+
+    muzzleWorld,
+
+    direction,
+
+    true,
+
+    weapon.damage,
+
+    weapon.projectileSpeed,
+
+    weapon.projectileLife
+
+);
+```
+
+}
+
+
 
 
 /* =====================================================
