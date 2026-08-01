@@ -657,7 +657,7 @@ let gunBobTime=0;
 function createGunModel(){
 
     if(gunModel){
-        camera.remove(gunModel);
+        gunModel.visible=true;
     }
 
     gunModel=new THREE.Group();
@@ -2924,42 +2924,46 @@ function toggleADS(){
 
         camera.updateProjectionMatrix();
 
-        if(
-            currentWeapon==="SNIPER"
-        ){
+      if(currentWeapon==="SNIPER"){
 
-            document.getElementById(
-                "scopeOverlay"
-            ).style.display=
-                "block";
+    document.getElementById(
+        "scopeOverlay"
+    ).style.display="block";
 
-            document.getElementById(
-                "crosshair"
-            ).style.display=
-                "none";
+    document.getElementById(
+        "crosshair"
+    ).style.display="none";
 
-        }
-
+    // Hide sniper model while scoped
+    if(gunModel){
+        gunModel.visible=false;
     }
+
+}  
 
     else{
 
-        camera.fov=
-            weapon.normalFOV;
+    camera.fov=
+        weapon.normalFOV;
 
-        camera.updateProjectionMatrix();
+    camera.updateProjectionMatrix();
 
-        document.getElementById(
-            "scopeOverlay"
-        ).style.display=
-            "none";
+    document.getElementById(
+        "scopeOverlay"
+    ).style.display=
+        "none";
 
-        document.getElementById(
-            "crosshair"
-        ).style.display=
-            "block";
+    document.getElementById(
+        "crosshair"
+    ).style.display=
+        "block";
 
+    // Show gun model again
+    if(gunModel){
+        gunModel.visible=true;
     }
+
+}
 
     updateWeaponHUD();
 
