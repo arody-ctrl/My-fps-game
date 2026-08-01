@@ -2322,7 +2322,7 @@ function movePlayer(delta) {
    SHOOTING
 ===================================================== */
 
-function shoot() {
+    function shoot() {
 
     if (gameOver)
         return;
@@ -2355,15 +2355,11 @@ function shoot() {
 
 
     /* =========================================
-       AIM FROM EXACT CENTER OF SCREEN
+       AIM THROUGH EXACT CENTER OF SCREEN
     ========================================= */
 
-    let raycaster = new THREE.Raycaster();
-
-    /*
-       The center of the screen is exactly
-       where the crosshair is located.
-    */
+    let raycaster =
+        new THREE.Raycaster();
 
     let screenCenter =
         new THREE.Vector2(0, 0);
@@ -2372,12 +2368,6 @@ function shoot() {
         screenCenter,
         camera
     );
-
-
-    /*
-       Get the exact direction from the
-       camera through the crosshair.
-    */
 
     let direction =
         raycaster.ray.direction.clone();
@@ -2407,7 +2397,7 @@ function shoot() {
 
 
     /* =========================================
-       BULLET START POSITION
+       BULLET STARTS AT CAMERA
     ========================================= */
 
     let start =
@@ -2417,179 +2407,23 @@ function shoot() {
 
 
     /* =========================================
-       CREATE PROJECTILE
+       CREATE BULLET
     ========================================= */
 
-    function createProjectile(
-    start,
-    direction,
-    playerProjectile,
-    damage = 25,
-    speed = 70,
-    life = 4
-) {
+    createProjectile(
 
-    /* =========================
-       BULLET
-    ========================= */
+        start,
+        direction,
+        true,
+        weapon.damage,
+        weapon.projectileSpeed,
+        weapon.projectileLife
 
-    let bulletGeometry =
-        new THREE.SphereGeometry(
-            0.22,
-            12,
-            12
-        );
-
-    let bulletMaterial =
-        new THREE.MeshBasicMaterial({
-
-            color:
-                playerProjectile
-                ? 0xffff00
-                : 0xff0000
-
-        });
-
-    let bullet =
-        new THREE.Mesh(
-            bulletGeometry,
-            bulletMaterial
-        );
-
-
-    /* =========================
-       START POSITION
-    ========================= */
-
-    bullet.position.copy(
-        start
-    );
-
-
-    /* =========================
-       DIRECTION
-    ========================= */
-
-    bullet.direction =
-        direction
-        .clone()
-        .normalize();
-
-
-    /* =========================
-       BULLET SPEED
-    ========================= */
-
-    bullet.speed =
-        speed;
-
-
-    /* =========================
-       BULLET LIFETIME
-    ========================= */
-
-    bullet.life =
-        life;
-
-
-    /* =========================
-       PLAYER OR ENEMY
-    ========================= */
-
-    bullet.playerProjectile =
-        playerProjectile;
-
-
-    /* =========================
-       DAMAGE
-    ========================= */
-
-    bullet.damage =
-        damage;
-
-
-    /* =========================
-       GLOWING TRAIL
-    ========================= */
-
-    let trailGeometry =
-        new THREE.CylinderGeometry(
-            0.05,
-            0.05,
-            1.5,
-            8
-        );
-
-    let trailMaterial =
-        new THREE.MeshBasicMaterial({
-
-            color:
-                playerProjectile
-                ? 0xff8800
-                : 0xff0000
-
-        });
-
-    let trail =
-        new THREE.Mesh(
-            trailGeometry,
-            trailMaterial
-        );
-
-
-    /* =========================
-       ALIGN TRAIL WITH BULLET
-    ========================= */
-
-    trail.quaternion.setFromUnitVectors(
-
-        new THREE.Vector3(
-            0,
-            1,
-            0
-        ),
-
-        bullet.direction
-
-    );
-
-
-    /* =========================
-       PLACE TRAIL BEHIND BULLET
-    ========================= */
-
-    trail.position.copy(
-        bullet.direction
-            .clone()
-            .multiplyScalar(-0.75)
-    );
-
-
-    bullet.add(
-        trail
-    );
-
-
-    /* =========================
-       ADD TO SCENE
-    ========================= */
-
-    scene.add(
-        bullet
-    );
-
-
-    /* =========================
-       SAVE PROJECTILE
-    ========================= */
-
-    projectiles.push(
-        bullet
     );
 
 }
-
-function updateProjectiles(delta) {
+    
+    function updateProjectiles(delta) {
 
     for (
         let i =
