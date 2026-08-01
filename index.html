@@ -2305,7 +2305,7 @@ if (
 
 
 /* =================================================
-   NO AMMO
+   AMMO
 ================================================= */
 
 if (
@@ -2319,10 +2319,6 @@ if (
 }
 
 
-/* =================================================
-   FIRE
-================================================= */
-
 lastPlayerShot =
     now;
 
@@ -2334,28 +2330,24 @@ updateWeaponHUD();
 
 
 /* =================================================
-   AIM FROM EXACT CENTER OF SCREEN
+   EXACT CENTER SCREEN AIM
    
-   This makes the projectile travel exactly
-   where the center crosshair is pointing.
+   0,0 = center of screen
+   This is where the crosshair is.
 ================================================= */
-
-let screenCenter =
-    new THREE.Vector2(
-        0,
-        0
-    );
-
 
 let raycaster =
     new THREE.Raycaster();
 
-
 raycaster.setFromCamera(
-    screenCenter,
+    new THREE.Vector2(0, 0),
     camera
 );
 
+
+/* =================================================
+   BULLET DIRECTION
+================================================= */
 
 let direction =
     raycaster.ray.direction
@@ -2398,15 +2390,14 @@ if (
 
 
 /* =================================================
-   GET CAMERA POSITION
+   BULLET SPAWN
    
-   Start the projectile slightly IN FRONT of
-   the camera so it can always be seen.
+   Start at camera position.
+   This guarantees the projectile exists.
 ================================================= */
 
 let start =
     new THREE.Vector3();
-
 
 camera.getWorldPosition(
     start
@@ -2414,26 +2405,19 @@ camera.getWorldPosition(
 
 
 /* =================================================
-   MOVE BULLET SPAWN POINT FORWARD
-   
-   This prevents the projectile from spawning
-   inside the camera or gun.
+   MOVE BULLET SLIGHTLY FORWARD
 ================================================= */
 
 start.add(
-    direction
-        .clone()
+    direction.clone()
         .multiplyScalar(
-            1.2
+            0.5
         )
 );
 
 
 /* =================================================
    CREATE PROJECTILE
-   
-   The projectile starts in front of the camera
-   and travels exactly along the crosshair.
 ================================================= */
 
 createProjectile(
@@ -2455,489 +2439,426 @@ createProjectile(
 
 }
 
-    
 /* =====================================================
-   CREATE PROJECTILE
+CREATE PROJECTILE
 ===================================================== */
 
 function createProjectile(
-    start,
-    direction,
-    friendly,
-    damage,
-    speed,
-    life
+start,
+direction,
+friendly,
+damage,
+speed,
+life
 ) {
 
-    /* =================================================
-       VISIBLE BULLET
-    ================================================= */
+```
+/* =================================================
+   SMALL VISIBLE BULLET
+================================================= */
 
-    let bulletGeometry =
-        new THREE.SphereGeometry(
-            friendly ? 0.12 : 0.16,
-            8,
-            8
-        );
-
-    let bulletMaterial =
-        new THREE.MeshBasicMaterial({
-
-            color:
-                friendly
-                    ? 0xffff00
-                    : 0xff0000
-
-        });
-
-    let bullet =
-        new THREE.Mesh(
-            bulletGeometry,
-            bulletMaterial
-        );
-
-
-    /* =================================================
-       BULLET POSITION
-    ================================================= */
-
-    bullet.position.copy(
-        start
+let bulletGeometry =
+    new THREE.SphereGeometry(
+        0.12,
+        6,
+        6
     );
 
 
-    /* =================================================
-       ADD BULLET TO SCENE
-    ================================================= */
+let bulletMaterial =
+    new THREE.MeshBasicMaterial({
 
-    scene.add(
-        bullet
+        color:
+            friendly
+                ? 0xffff00
+                : 0xff0000
+
+    });
+
+
+let bullet =
+    new THREE.Mesh(
+        bulletGeometry,
+        bulletMaterial
     );
 
 
-    /* =================================================
-       PROJECTILE DATA
-    ================================================= */
+/* =================================================
+   POSITION
+================================================= */
 
-    bullet.userData = {
-
-        direction:
-            direction.clone().normalize(),
-
-        speed:
-            speed,
-
-        damage:
-            damage,
-
-        friendly:
-            friendly,
-
-        life:
-            life,
-
-        age:
-            0,
-
-        previousPosition:
-            start.clone()
-
-    };
+bullet.position.copy(
+    start
+);
 
 
-    /* =================================================
-       ADD TO PROJECTILE ARRAY
-    ================================================= */
+/* =================================================
+   DATA
+================================================= */
 
-    projectiles.push(
-        bullet
-    );
+bullet.userData = {
+
+    direction:
+        direction.clone()
+            .normalize(),
+
+    speed:
+        speed,
+
+    damage:
+        damage,
+
+    friendly:
+        friendly,
+
+    life:
+        life,
+
+    age:
+        0
+
+};
+
+
+/* =================================================
+   ADD TO SCENE
+================================================= */
+
+scene.add(
+    bullet
+);
+
+
+projectiles.push(
+    bullet
+);
+```
 
 }
 
-
 /* =====================================================
-   UPDATE ALL PROJECTILES
+UPDATE PROJECTILES
 ===================================================== */
 
-function updateProjectiles(delta) {
+function updateProjectiles(
+delta
+) {
+
+```
+for (
+    let i =
+        projectiles.length - 1;
+
+    i >= 0;
+
+    i--
+) {
+
+    let projectile =
+        projectiles[i];
+
 
     if (
-        projectiles.length === 0
+        !projectile
     ) {
-        return;
+
+        projectiles.splice(
+            i,
+            1
+        );
+
+        continue;
+
+    }
+
+
+    let data =
+        projectile.userData;
+
+
+    /* =================================================
+       SAVE OLD POSITION
+    ================================================= */
+
+    let oldPosition =
+        projectile.position.clone();
+
+
+    /* =================================================
+       MOVE
+    ================================================= */
+
+    projectile.position.x +=
+        data.direction.x *
+        data.speed *
+        delta;
+
+    projectile.position.y +=
+        data.direction.y *
+        data.speed *
+        delta;
+
+    projectile.position.z +=
+        data.direction.z *
+        data.speed *
+        delta;
+
+
+    /* =================================================
+       AGE
+    ================================================= */
+
+    data.age +=
+        delta;
+
+
+    /* =================================================
+       REMOVE AFTER LIFE
+    ================================================= */
+
+    if (
+        data.age >=
+        data.life
+    ) {
+
+        removeProjectile(
+            i
+        );
+
+        continue;
+
     }
 
 
     /* =================================================
-       LOOP BACKWARD
-       Allows safe removal
+       SIMPLE WALL COLLISION
     ================================================= */
 
-    for (
-        let i =
-            projectiles.length - 1;
-
-        i >= 0;
-
-        i--
+    if (
+        circleIntersectsWall(
+            projectile.position.x,
+            projectile.position.z,
+            0.1
+        )
     ) {
 
-        let projectile =
-            projectiles[i];
+        removeProjectile(
+            i
+        );
 
-        if (!projectile) {
+        continue;
 
-            projectiles.splice(
-                i,
-                1
+    }
+
+
+    /* =================================================
+       PLAYER BULLET
+    ================================================= */
+
+    if (
+        data.friendly
+    ) {
+
+        let hit =
+            checkBulletEnemyHitSimple(
+                projectile,
+                data.damage
+            );
+
+
+        if (
+            hit
+        ) {
+
+            removeProjectile(
+                i
             );
 
             continue;
 
         }
 
-
-        let data =
-            projectile.userData;
+    }
 
 
-        /* =================================================
-           SAVE OLD POSITION
-        ================================================= */
+    /* =================================================
+       ENEMY BULLET
+    ================================================= */
 
-        let oldPosition =
-            projectile.position.clone();
+    else {
+
+        if (
+            checkBulletPlayerHitSimple(
+                projectile
+            )
+        ) {
+
+            removeProjectile(
+                i
+            );
+
+            continue;
+
+        }
+
+    }
+
+}
+```
+
+}
+
+/* =====================================================
+SIMPLE BULLET → ENEMY COLLISION
+===================================================== */
+
+function checkBulletEnemyHitSimple(
+projectile,
+damage
+) {
+
+```
+let bulletPosition =
+    projectile.position;
 
 
-        data.previousPosition =
-            oldPosition.clone();
+for (
+    let i = 0;
+
+    i < enemies.length;
+
+    i++
+) {
+
+    let enemy =
+        enemies[i];
 
 
-        /* =================================================
-           MOVE BULLET
-        ================================================= */
+    if (
+        !enemy.alive
+    ) {
 
-        let movement =
-            data.direction
-                .clone()
-                .multiplyScalar(
-                    data.speed *
-                    delta
-                );
+        continue;
+
+    }
 
 
-        projectile.position.add(
-            movement
+    /* =================================================
+       ENEMY CENTER
+    ================================================= */
+
+    let enemyCenter =
+        new THREE.Vector3(
+
+            enemy.position.x,
+
+            enemy.position.y +
+            2.2,
+
+            enemy.position.z
+
         );
 
 
-        /* =================================================
-           INCREASE BULLET AGE
-        ================================================= */
+    /* =================================================
+       DISTANCE
+    ================================================= */
 
-        data.age +=
-            delta;
-
-
-        /* =================================================
-           REMOVE OLD BULLETS
-        ================================================= */
-
-        if (
-            data.age >=
-            data.life
-        ) {
-
-            removeProjectile(
-                i
-            );
-
-            continue;
-
-        }
+    let distance =
+        bulletPosition.distanceTo(
+            enemyCenter
+        );
 
 
-        /* =================================================
-           BULLET TRAVEL SEGMENT
-           
-           We check from the old position
-           to the new position.
+    /* =================================================
+       HIT RADIUS
+    ================================================= */
 
-           This prevents fast bullets
-           from passing through enemies.
-        ================================================= */
+    if (
+        distance <= 2.2
+    ) {
 
-        let travelDirection =
-            projectile.position
-                .clone()
-                .sub(
-                    oldPosition
-                );
+        showHitMarker();
 
-        let travelDistance =
-            travelDirection.length();
+
+        enemy.health -=
+            damage;
+
+
+        createHitEffect(
+            bulletPosition
+        );
 
 
         if (
-            travelDistance <= 0
+            enemy.health <= 0
         ) {
 
-            continue;
-
-        }
-
-
-        travelDirection.normalize();
-
-
-        /* =================================================
-           RAYCAST BULLET PATH
-        ================================================= */
-
-        let bulletRay =
-            new THREE.Raycaster(
-                oldPosition,
-                travelDirection,
-                0,
-                travelDistance
+            killEnemy(
+                enemy
             );
 
-
-        /* =================================================
-           CHECK WALL COLLISION
-        ================================================= */
-
-        let wallHits =
-            bulletRay.intersectObjects(
-                walls,
-                false
-            );
-
-
-        /* =================================================
-           IF BULLET HITS WALL
-        ================================================= */
-
-        if (
-            wallHits.length > 0
-        ) {
-
-            removeProjectile(
-                i
-            );
-
-            continue;
-
         }
-
-
-        /* =================================================
-           PLAYER BULLET
-           CHECK ENEMIES
-        ================================================= */
-
-        if (
-            data.friendly
-        ) {
-
-            let hitEnemy =
-                checkBulletEnemyHit(
-                    bulletRay,
-                    data.damage
-                );
-
-
-            if (
-                hitEnemy
-            ) {
-
-                removeProjectile(
-                    i
-                );
-
-                continue;
-
-            }
-
-        }
-
-
-        /* =================================================
-           ENEMY BULLET
-           CHECK PLAYER
-        ================================================= */
 
         else {
 
-            if (
-                checkBulletPlayerHit(
-                    bulletRay
-                )
-            ) {
+            score +=
+                10;
 
-                removeProjectile(
-                    i
-                );
+            showScorePopup(
+                "+10"
+            );
 
-                continue;
-
-            }
+            updateHUD();
 
         }
+
+
+        return true;
 
     }
 
 }
 
+
+return false;
+```
+
+}
 
 /* =====================================================
-   CHECK BULLET → ENEMY HIT
+SIMPLE BULLET → PLAYER COLLISION
 ===================================================== */
 
-function checkBulletEnemyHit(
-    bulletRay,
-    damage
+function checkBulletPlayerHitSimple(
+projectile
 ) {
 
-    for (
-        let i = 0;
-
-        i < enemies.length;
-
-        i++
-    ) {
-
-        let enemy =
-            enemies[i];
+```
+let distance =
+    projectile.position.distanceTo(
+        player.position
+    );
 
 
-        /* =================================================
-           IGNORE DEAD ENEMIES
-        ================================================= */
+if (
+    distance <= 1.5
+) {
 
-        if (
-            !enemy.alive
-        ) {
+    takeDamage(
+        5
+    );
 
-            continue;
-
-        }
-
-
-        /* =================================================
-           GET ALL ENEMY MESHES
-        ================================================= */
-
-        let enemyMeshes = [];
-
-
-        enemy.traverse(
-            function(object) {
-
-                if (
-                    object.isMesh
-                ) {
-
-                    enemyMeshes.push(
-                        object
-                    );
-
-                }
-
-            }
-        );
-
-
-        /* =================================================
-           TEST BULLET RAY AGAINST ENEMY
-        ================================================= */
-
-        let hits =
-            bulletRay.intersectObjects(
-                enemyMeshes,
-                false
-            );
-
-
-        /* =================================================
-           ENEMY HIT
-        ================================================= */
-
-        if (
-            hits.length > 0
-        ) {
-
-            let hit =
-                hits[0];
-
-
-            /* =============================================
-               HIT MARKER
-            ============================================= */
-
-            showHitMarker();
-
-
-            /* =============================================
-               DAMAGE ENEMY
-            ============================================= */
-
-            enemy.health -=
-                damage;
-
-
-            /* =============================================
-               HIT EFFECT
-            ============================================= */
-
-            createHitEffect(
-                hit.point
-            );
-
-
-            /* =============================================
-               ENEMY DEATH
-            ============================================= */
-
-            if (
-                enemy.health <= 0
-            ) {
-
-                killEnemy(
-                    enemy
-                );
-
-            }
-
-            else {
-
-                /* =========================================
-                   HIT SCORE
-                   Small reward for damaging enemy
-                ========================================= */
-
-                score += 10;
-
-                showScorePopup(
-                    "+10"
-                );
-
-                updateHUD();
-
-            }
-
-
-            return true;
-
-        }
-
-    }
-
-
-    return false;
+    return true;
 
 }
+
+
+return false;
+```
+
+}
+
 
 
 /* =====================================================
