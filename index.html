@@ -2283,20 +2283,34 @@ function movePlayer(delta) {
 if (gameOver)
     return;
 
-let weapon = weapons[currentWeapon];
+let weapon =
+    weapons[currentWeapon];
 
-let now = performance.now();
+let now =
+    performance.now();
 
-/* FIRE RATE */
+
+/* =================================================
+   FIRE RATE
+================================================= */
+
 if (
     now - lastPlayerShot <
     weapon.fireRate
 ) {
+
     return;
+
 }
 
-/* NO AMMO */
-if (weapon.ammo <= 0) {
+
+/* =================================================
+   NO AMMO
+================================================= */
+
+if (
+    weapon.ammo <= 0
+) {
 
     reload();
 
@@ -2304,7 +2318,13 @@ if (weapon.ammo <= 0) {
 
 }
 
-lastPlayerShot = now;
+
+/* =================================================
+   FIRE
+================================================= */
+
+lastPlayerShot =
+    now;
 
 weapon.ammo--;
 
@@ -2314,28 +2334,28 @@ updateWeaponHUD();
 
 
 /* =================================================
-   AIM DIRECTION
+   AIM FROM EXACT CENTER OF SCREEN
    
-   The ray is created from the EXACT CENTER
-   of the camera. This guarantees the projectile
-   follows the crosshair.
+   This makes the projectile travel exactly
+   where the center crosshair is pointing.
 ================================================= */
 
 let screenCenter =
-    new THREE.Vector2(0, 0);
+    new THREE.Vector2(
+        0,
+        0
+    );
+
 
 let raycaster =
     new THREE.Raycaster();
+
 
 raycaster.setFromCamera(
     screenCenter,
     camera
 );
 
-
-/* =================================================
-   GET CAMERA AIM DIRECTION
-================================================= */
 
 let direction =
     raycaster.ray.direction
@@ -2344,21 +2364,32 @@ let direction =
 
 
 /* =================================================
-   APPLY WEAPON SPREAD
+   WEAPON SPREAD
 ================================================= */
 
-if (weapon.spread > 0) {
+if (
+    weapon.spread > 0
+) {
 
     direction.x +=
-        (Math.random() - 0.5) *
+        (
+            Math.random() -
+            0.5
+        ) *
         weapon.spread;
 
     direction.y +=
-        (Math.random() - 0.5) *
+        (
+            Math.random() -
+            0.5
+        ) *
         weapon.spread;
 
     direction.z +=
-        (Math.random() - 0.5) *
+        (
+            Math.random() -
+            0.5
+        ) *
         weapon.spread;
 
     direction.normalize();
@@ -2367,88 +2398,47 @@ if (weapon.spread > 0) {
 
 
 /* =================================================
-   FIND MUZZLE POSITION
+   GET CAMERA POSITION
    
-   The bullet starts at the actual gun muzzle
-   instead of the camera.
+   Start the projectile slightly IN FRONT of
+   the camera so it can always be seen.
 ================================================= */
 
-let muzzleWorld =
+let start =
     new THREE.Vector3();
 
 
-/* Approximate muzzle position
-   based on weapon model */
-
-let muzzleLocal =
-    new THREE.Vector3(
-        0,
-        0,
-        -1.25
-    );
-
-
-if (currentWeapon === "AR") {
-
-    muzzleLocal.set(
-        0,
-        0,
-        -1.45
-    );
-
-}
-
-else if (currentWeapon === "SMG") {
-
-    muzzleLocal.set(
-        0,
-        0,
-        -1.05
-    );
-
-}
-
-else if (currentWeapon === "PISTOL") {
-
-    muzzleLocal.set(
-        0,
-        0,
-        -0.9
-    );
-
-}
-
-else if (currentWeapon === "SNIPER") {
-
-    muzzleLocal.set(
-        0,
-        0,
-        -2.25
-    );
-
-}
-
-
-gunModel.localToWorld(
-    muzzleWorld.copy(
-        muzzleLocal
-    )
+camera.getWorldPosition(
+    start
 );
 
 
 /* =================================================
-   IMPORTANT:
+   MOVE BULLET SPAWN POINT FORWARD
    
-   The bullet starts at the muzzle but uses the
-   camera's center-screen aim direction.
+   This prevents the projectile from spawning
+   inside the camera or gun.
+================================================= */
+
+start.add(
+    direction
+        .clone()
+        .multiplyScalar(
+            1.2
+        )
+);
+
+
+/* =================================================
+   CREATE PROJECTILE
    
-   This fixes the bullet visually spawning from
-   the gun while still aiming at the crosshair.
+   The projectile starts in front of the camera
+   and travels exactly along the crosshair.
 ================================================= */
 
 createProjectile(
 
-    muzzleWorld,
+    start,
 
     direction,
 
@@ -2465,9 +2455,7 @@ createProjectile(
 
 }
 
-
-
-
+    
 /* =====================================================
    CREATE PROJECTILE
 ===================================================== */
