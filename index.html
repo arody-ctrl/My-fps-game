@@ -2307,15 +2307,12 @@ function shoot() {
     if (gameOver)
         return;
 
-    let weapon =
-        weapons[currentWeapon];
+    let weapon = weapons[currentWeapon];
 
-    let now =
-        performance.now();
+    let now = performance.now();
 
     if (
-        now -
-        lastPlayerShot <
+        now - lastPlayerShot <
         weapon.fireRate
     )
         return;
@@ -2336,55 +2333,87 @@ function shoot() {
 
     updateWeaponHUD();
 
-    let direction =
-        new THREE.Vector3(
-            0,
-            0,
-            -1
-        );
 
-    direction.applyQuaternion(
-        camera.getWorldQuaternion(
-            new THREE.Quaternion()
-        )
+    /* =========================================
+       AIM FROM EXACT CENTER OF SCREEN
+    ========================================= */
+
+    let raycaster = new THREE.Raycaster();
+
+    /*
+       The center of the screen is exactly
+       where the crosshair is located.
+    */
+
+    let screenCenter =
+        new THREE.Vector2(0, 0);
+
+    raycaster.setFromCamera(
+        screenCenter,
+        camera
     );
+
+
+    /*
+       Get the exact direction from the
+       camera through the crosshair.
+    */
+
+    let direction =
+        raycaster.ray.direction.clone();
+
+
+    /* =========================================
+       WEAPON SPREAD
+    ========================================= */
 
     if (weapon.spread > 0) {
 
         direction.x +=
-            (
-                Math.random() - 0.5
-            ) *
+            (Math.random() - 0.5) *
             weapon.spread;
 
         direction.y +=
-            (
-                Math.random() - 0.5
-            ) *
+            (Math.random() - 0.5) *
             weapon.spread;
 
         direction.z +=
-            (
-                Math.random() - 0.5
-            ) *
+            (Math.random() - 0.5) *
             weapon.spread;
 
         direction.normalize();
 
     }
 
+
+    /* =========================================
+       BULLET START POSITION
+    ========================================= */
+
     let start =
         camera.getWorldPosition(
             new THREE.Vector3()
         );
 
+
+    /* =========================================
+       CREATE PROJECTILE
+    ========================================= */
+
     createProjectile(
+
         start,
+
         direction,
+
         true,
+
         weapon.damage,
+
         weapon.projectileSpeed,
+
         weapon.projectileLife
+
     );
 
 }
