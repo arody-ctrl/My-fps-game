@@ -476,6 +476,8 @@ canvas{
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
+<script src="src/game-core.js"></script>
+
 <script>
 
 /* =====================================================
@@ -499,337 +501,10 @@ let score = 0;
 let gameOver = false;
 
 /* =====================================================
-   SHARED UTILITIES
-===================================================== */
-
-function el(id){
-
-    return document.getElementById(id);
-
-}
-
-function setText(id,value){
-
-    el(id).textContent=value;
-
-}
-
-function setDisplay(id,visible){
-
-    el(id).style.display=
-        visible?"block":"none";
-
-}
-
-const fadeTimers={};
-
-function flashElement(id,duration,text){
-
-    let element=el(id);
-
-    if(text!==undefined){
-
-        element.textContent=text;
-
-    }
-
-    element.style.opacity=1;
-
-    if(fadeTimers[id]){
-
-        clearTimeout(fadeTimers[id]);
-
-    }
-
-    fadeTimers[id]=
-        setTimeout(
-            function(){
-
-                element.style.opacity=0;
-
-                fadeTimers[id]=null;
-
-            },
-            duration
-        );
-
-}
-
-function onTouchStart(element,handler){
-
-    element.addEventListener(
-        "touchstart",
-        function(e){
-
-            e.preventDefault();
-
-            handler(e);
-
-        },
-        {
-            passive:false
-        }
-    );
-
-}
-
-function clamp(value,min,max){
-
-    return Math.max(
-        min,
-        Math.min(max,value)
-    );
-
-}
-
-function randomRange(min,max){
-
-    return min+
-        Math.random()*(max-min);
-
-}
-
-function randomInt(min,max){
-
-    return Math.floor(
-        randomRange(min,max+1)
-    );
-
-}
-
-function pickRandom(list){
-
-    return list[
-        Math.floor(
-            Math.random()*list.length
-        )
-    ];
-
-}
-
-function horizontalDistance(a,b){
-
-    return Math.hypot(
-        a.x-b.x,
-        a.z-b.z
-    );
-
-}
-
-function aliveEnemyCount(){
-
-    return enemies.filter(
-        enemy=>enemy.alive
-    ).length;
-
-}
-
-function applySpread(direction,spread){
-
-    if(spread<=0)return direction;
-
-    direction.x+=
-        (Math.random()-.5)*spread;
-
-    direction.y+=
-        (Math.random()-.5)*spread;
-
-    direction.z+=
-        (Math.random()-.5)*spread;
-
-    return direction.normalize();
-
-}
-
-function setCameraFOV(fov){
-
-    camera.fov=fov;
-
-    camera.updateProjectionMatrix();
-
-}
-
-function setScopeUI(scoped){
-
-    setDisplay("scopeOverlay",scoped);
-
-    setDisplay("crosshair",!scoped);
-
-}
-
-/* MESH BUILDING */
-
-function standardMaterial(color){
-
-    return new THREE.MeshStandardMaterial({
-        color:color,
-        roughness:.7,
-        metalness:.2
-    });
-
-}
-
-function addBox(
-    parent,
-    size,
-    material,
-    position,
-    rotation
-){
-
-    let mesh=new THREE.Mesh(
-        new THREE.BoxGeometry(
-            size[0],
-            size[1],
-            size[2]
-        ),
-        typeof material==="number"?
-            standardMaterial(material):
-            material
-    );
-
-    return addPart(
-        parent,
-        mesh,
-        position,
-        rotation
-    );
-
-}
-
-function addPart(
-    parent,
-    mesh,
-    position,
-    rotation
-){
-
-    if(position){
-
-        mesh.position.set(
-            position[0],
-            position[1],
-            position[2]
-        );
-
-    }
-
-    if(rotation){
-
-        mesh.rotation.set(
-            rotation[0],
-            rotation[1],
-            rotation[2]
-        );
-
-    }
-
-    parent.add(mesh);
-
-    return mesh;
-
-}
-
-const SIGHT_COLOR=0x111111;
-
-/*
-   IRON SIGHT:
-   A base block with one or more
-   posts standing on top of it.
-*/
-
-function addIronSight(parent,options){
-
-    addBox(
-        parent,
-        options.baseSize,
-        SIGHT_COLOR,
-        [0,options.baseY,options.z]
-    );
-
-    for(
-        let offset of
-        (options.postOffsets||[0])
-    ){
-
-        addBox(
-            parent,
-            options.postSize,
-            SIGHT_COLOR,
-            [offset,options.postY,options.z]
-        );
-
-    }
-
-}
-
-/* =====================================================
    WEAPONS
 ===================================================== */
 
-const weapons = {
-
-    AR:{
-        name:"ASSAULT RIFLE",
-        magazineSize:30,
-        ammo:30,
-        reserve:120,
-        damage:25,
-        fireRate:120,
-        projectileSpeed:110,
-        projectileLife:5,
-        spread:.008,
-        adsFOV:55,
-        normalFOV:75,
-        automatic:true
-    },
-
-    SMG:{
-        name:"SMG",
-        magazineSize:35,
-        ammo:35,
-        reserve:175,
-        damage:18,
-        fireRate:70,
-        projectileSpeed:95,
-        projectileLife:4,
-        spread:.025,
-        adsFOV:60,
-        normalFOV:75,
-        automatic:true
-    },
-
-    PISTOL:{
-        name:"PISTOL",
-        magazineSize:12,
-        ammo:12,
-        reserve:72,
-        damage:40,
-        fireRate:250,
-        projectileSpeed:100,
-        projectileLife:5,
-        spread:.01,
-        adsFOV:58,
-        normalFOV:75,
-        automatic:false
-    },
-
-    SNIPER:{
-        name:"SNIPER",
-        magazineSize:5,
-        ammo:5,
-        reserve:30,
-        damage:200,
-        fireRate:1100,
-        projectileSpeed:300,
-        projectileLife:10,
-        spread:0,
-        adsFOV:18,
-        normalFOV:75,
-        automatic:false
-    }
-
-};
+const weapons=GameCore.createWeapons();
 
 let currentWeapon="AR";
 let isADS=false;
@@ -841,75 +516,9 @@ let lastPlayerShot=0;
    MAX 4 UPGRADES PER WEAPON
 ===================================================== */
 
-const MAX_UPGRADES=4;
+const MAX_UPGRADES=GameCore.MAX_UPGRADES;
 
-const upgradeTypes=[
-
-    {
-        name:"DAMAGE +20%",
-        type:"damage",
-        apply:function(w){
-            w.damage=Math.round(w.damage*1.2);
-        }
-    },
-
-    {
-        name:"FIRE RATE +15%",
-        type:"fireRate",
-        apply:function(w){
-            w.fireRate=Math.max(
-                35,
-                Math.round(w.fireRate*.85)
-            );
-        }
-    },
-
-    {
-        name:"MAGAZINE +25%",
-        type:"magazine",
-        apply:function(w){
-
-            let oldSize=w.magazineSize;
-
-            w.magazineSize=Math.ceil(
-                w.magazineSize*1.25
-            );
-
-            w.ammo+=
-                w.magazineSize-oldSize;
-        }
-    },
-
-    {
-        name:"RESERVE AMMO +50%",
-        type:"reserve",
-        apply:function(w){
-
-            w.reserve+=Math.ceil(
-                w.reserve*.5
-            );
-        }
-    },
-
-    {
-        name:"PROJECTILE SPEED +25%",
-        type:"speed",
-        apply:function(w){
-
-            w.projectileSpeed*=1.25;
-        }
-    },
-
-    {
-        name:"ACCURACY +30%",
-        type:"accuracy",
-        apply:function(w){
-
-            w.spread*=.7;
-        }
-    }
-
-];
+const upgradeTypes=GameCore.upgradeTypes;
 
 /* =====================================================
    LOW POLY GUN
@@ -935,24 +544,28 @@ function createGunModel(){
 
     camera.add(gunModel);
 
-    gunBuilders[currentWeapon]();
+    if(currentWeapon==="AR"){
+        createARModel();
+    }
+    else if(currentWeapon==="SMG"){
+        createSMGModel();
+    }
+    else if(currentWeapon==="PISTOL"){
+        createPistolModel();
+    }
+    else if(currentWeapon==="SNIPER"){
+        createSniperModel();
+    }
 
 }
 
-function setPhysicalScopeVisible(visible){
+function gunMaterial(color){
 
-    if(!gunModel)return;
-
-    let scope=
-        gunModel.getObjectByName(
-            "sniperScope"
-        );
-
-    if(scope){
-
-        scope.visible=visible;
-
-    }
+    return new THREE.MeshStandardMaterial({
+        color:color,
+        roughness:.7,
+        metalness:.2
+    });
 
 }
 
@@ -962,64 +575,105 @@ function setPhysicalScopeVisible(visible){
 
 function createARModel(){
 
-    addBox(
-        gunModel,
-        [.25,.25,1.1],
-        0x222222,
-        [0,0,-.35]
+    let body=new THREE.Mesh(
+        new THREE.BoxGeometry(.25,.25,1.1),
+        gunMaterial(0x222222)
     );
 
-    addBox(
-        gunModel,
-        [.09,.09,.65],
-        SIGHT_COLOR,
-        [0,0,-1.15]
+    body.position.z=-.35;
+    gunModel.add(body);
+
+    let barrel=new THREE.Mesh(
+        new THREE.BoxGeometry(.09,.09,.65),
+        gunMaterial(0x111111)
     );
 
-    addBox(
-        gunModel,
-        [.22,.22,.45],
-        0x333333,
-        [0,0,.4]
+    barrel.position.z=-1.15;
+    gunModel.add(barrel);
+
+    let stock=new THREE.Mesh(
+        new THREE.BoxGeometry(.22,.22,.45),
+        gunMaterial(0x333333)
     );
 
-    addBox(
-        gunModel,
-        [.16,.35,.18],
-        SIGHT_COLOR,
-        [0,-.25,0],
-        [-.2,0,0]
+    stock.position.z=.4;
+    gunModel.add(stock);
+
+    let grip=new THREE.Mesh(
+        new THREE.BoxGeometry(.16,.35,.18),
+        gunMaterial(0x111111)
     );
 
-    addBox(
-        gunModel,
-        [.15,.5,.2],
-        SIGHT_COLOR,
-        [0,-.28,-.25],
-        [.2,0,0]
+    grip.position.set(0,-.25,0);
+    grip.rotation.x=-.2;
+    gunModel.add(grip);
+
+    let magazine=new THREE.Mesh(
+        new THREE.BoxGeometry(.15,.5,.2),
+        gunMaterial(0x111111)
     );
 
-    addIronSight(
-        gunModel,
-        {
-            baseSize:[.12,.08,.12],
-            baseY:.18,
-            postSize:[.035,.12,.035],
-            postY:.25,
-            z:.05
-        }
+    magazine.position.set(0,-.28,-.25);
+    magazine.rotation.x=.2;
+    gunModel.add(magazine);
+
+
+    /* REAR SIGHT */
+
+    let rearSight=new THREE.Mesh(
+        new THREE.BoxGeometry(.12,.08,.12),
+        gunMaterial(0x111111)
     );
 
-    addIronSight(
-        gunModel,
-        {
-            baseSize:[.1,.07,.1],
-            baseY:.17,
-            postSize:[.035,.14,.035],
-            postY:.25,
-            z:-.82
-        }
+    rearSight.position.set(
+        0,
+        .18,
+        .05
     );
+
+    gunModel.add(rearSight);
+
+    let rearPost=new THREE.Mesh(
+        new THREE.BoxGeometry(.035,.12,.035),
+        gunMaterial(0x111111)
+    );
+
+    rearPost.position.set(
+        0,
+        .25,
+        .05
+    );
+
+    gunModel.add(rearPost);
+
+
+    /* FRONT SIGHT */
+
+    let frontSight=new THREE.Mesh(
+        new THREE.BoxGeometry(.1,.07,.1),
+        gunMaterial(0x111111)
+    );
+
+    frontSight.position.set(
+        0,
+        .17,
+        -.82
+    );
+
+    gunModel.add(frontSight);
+
+    let frontPost=new THREE.Mesh(
+        new THREE.BoxGeometry(.035,.14,.035),
+        gunMaterial(0x111111)
+    );
+
+    frontPost.position.set(
+        0,
+        .25,
+        -.82
+    );
+
+    gunModel.add(frontPost);
 
 }
 
@@ -1030,55 +684,105 @@ function createARModel(){
 
 function createSMGModel(){
 
-    addBox(
-        gunModel,
-        [.28,.28,.75],
-        0x333333,
-        [0,0,-.35]
+    let body=new THREE.Mesh(
+        new THREE.BoxGeometry(.28,.28,.75),
+        gunMaterial(0x333333)
     );
 
-    addBox(
-        gunModel,
-        [.1,.1,.35],
-        SIGHT_COLOR,
-        [0,0,-.9]
+    body.position.z=-.35;
+    gunModel.add(body);
+
+    let barrel=new THREE.Mesh(
+        new THREE.BoxGeometry(.1,.1,.35),
+        gunMaterial(0x111111)
     );
 
-    addBox(
-        gunModel,
-        [.18,.35,.18],
-        SIGHT_COLOR,
-        [0,-.28,-.05]
+    barrel.position.z=-.9;
+    gunModel.add(barrel);
+
+    let grip=new THREE.Mesh(
+        new THREE.BoxGeometry(.18,.35,.18),
+        gunMaterial(0x111111)
     );
 
-    addBox(
-        gunModel,
-        [.15,.45,.18],
-        SIGHT_COLOR,
-        [0,-.28,-.35]
+    grip.position.set(
+        0,
+        -.28,
+        -.05
     );
 
-    addIronSight(
-        gunModel,
-        {
-            baseSize:[.12,.08,.12],
-            baseY:.18,
-            postSize:[.035,.11,.035],
-            postY:.25,
-            z:-.02
-        }
+    gunModel.add(grip);
+
+    let magazine=new THREE.Mesh(
+        new THREE.BoxGeometry(.15,.45,.18),
+        gunMaterial(0x111111)
     );
 
-    addIronSight(
-        gunModel,
-        {
-            baseSize:[.1,.07,.1],
-            baseY:.16,
-            postSize:[.035,.12,.035],
-            postY:.24,
-            z:-.72
-        }
+    magazine.position.set(
+        0,
+        -.28,
+        -.35
     );
+
+    gunModel.add(magazine);
+
+
+    /* REAR SIGHT */
+
+    let rearSight=new THREE.Mesh(
+        new THREE.BoxGeometry(.12,.08,.12),
+        gunMaterial(0x111111)
+    );
+
+    rearSight.position.set(
+        0,
+        .18,
+        -.02
+    );
+
+    gunModel.add(rearSight);
+
+    let rearPost=new THREE.Mesh(
+        new THREE.BoxGeometry(.035,.11,.035),
+        gunMaterial(0x111111)
+    );
+
+    rearPost.position.set(
+        0,
+        .25,
+        -.02
+    );
+
+    gunModel.add(rearPost);
+
+
+    /* FRONT SIGHT */
+
+    let frontSight=new THREE.Mesh(
+        new THREE.BoxGeometry(.1,.07,.1),
+        gunMaterial(0x111111)
+    );
+
+    frontSight.position.set(
+        0,
+        .16,
+        -.72
+    );
+
+    gunModel.add(frontSight);
+
+    let frontPost=new THREE.Mesh(
+        new THREE.BoxGeometry(.035,.12,.035),
+        gunMaterial(0x111111)
+    );
+
+    frontPost.position.set(
+        0,
+        .24,
+        -.72
+    );
+
+    gunModel.add(frontPost);
 
 }
 
@@ -1095,50 +799,107 @@ function createPistolModel(){
         -.7
     );
 
-    addBox(
-        gunModel,
-        [.25,.3,.65],
-        0x222222,
-        [0,0,-.25]
+    let body=new THREE.Mesh(
+        new THREE.BoxGeometry(.25,.3,.65),
+        gunMaterial(0x222222)
     );
 
-    addBox(
-        gunModel,
-        [.12,.12,.3],
-        SIGHT_COLOR,
-        [0,0,-.72]
+    body.position.z=-.25;
+    gunModel.add(body);
+
+    let barrel=new THREE.Mesh(
+        new THREE.BoxGeometry(.12,.12,.3),
+        gunMaterial(0x111111)
     );
 
-    addBox(
-        gunModel,
-        [.18,.5,.2],
-        SIGHT_COLOR,
-        [0,-.35,.02],
-        [-.15,0,0]
+    barrel.position.z=-.72;
+    gunModel.add(barrel);
+
+    let grip=new THREE.Mesh(
+        new THREE.BoxGeometry(.18,.5,.2),
+        gunMaterial(0x111111)
     );
 
-    addIronSight(
-        gunModel,
-        {
-            baseSize:[.08,.05,.08],
-            baseY:.18,
-            postSize:[.025,.1,.025],
-            postY:.25,
-            z:-.67
-        }
+    grip.position.set(
+        0,
+        -.35,
+        .02
     );
 
-    addIronSight(
-        gunModel,
-        {
-            baseSize:[.1,.06,.08],
-            baseY:.19,
-            postSize:[.025,.1,.025],
-            postY:.25,
-            postOffsets:[-.04,.04],
-            z:-.02
-        }
+    grip.rotation.x=-.15;
+
+    gunModel.add(grip);
+
+
+    /* FRONT SIGHT */
+
+    let frontSight=new THREE.Mesh(
+        new THREE.BoxGeometry(.08,.05,.08),
+        gunMaterial(0x111111)
     );
+
+    frontSight.position.set(
+        0,
+        .18,
+        -.67
+    );
+
+    gunModel.add(frontSight);
+
+    let frontPost=new THREE.Mesh(
+        new THREE.BoxGeometry(.025,.1,.025),
+        gunMaterial(0x111111)
+    );
+
+    frontPost.position.set(
+        0,
+        .25,
+        -.67
+    );
+
+    gunModel.add(frontPost);
+
+
+    /* REAR SIGHT */
+
+    let rearBase=new THREE.Mesh(
+        new THREE.BoxGeometry(.1,.06,.08),
+        gunMaterial(0x111111)
+    );
+
+    rearBase.position.set(
+        0,
+        .19,
+        -.02
+    );
+
+    gunModel.add(rearBase);
+
+    let rearLeft=new THREE.Mesh(
+        new THREE.BoxGeometry(.025,.1,.025),
+        gunMaterial(0x111111)
+    );
+
+    rearLeft.position.set(
+        -.04,
+        .25,
+        -.02
+    );
+
+    gunModel.add(rearLeft);
+
+    let rearRight=new THREE.Mesh(
+        new THREE.BoxGeometry(.025,.1,.025),
+        gunMaterial(0x111111)
+    );
+
+    rearRight.position.set(
+        .04,
+        .25,
+        -.02
+    );
+
+    gunModel.add(rearRight);
 
 }
 
@@ -1155,32 +916,39 @@ function createSniperModel(){
         -.85
     );
 
+
     /* MAIN BODY */
 
-    addBox(
-        gunModel,
-        [.28,.3,1.5],
-        0x222222,
-        [0,0,-.35]
+    let body=new THREE.Mesh(
+        new THREE.BoxGeometry(.28,.3,1.5),
+        gunMaterial(0x222222)
     );
+
+    body.position.z=-.35;
+    gunModel.add(body);
+
 
     /* BARREL */
 
-    addBox(
-        gunModel,
-        [.1,.1,1.3],
-        SIGHT_COLOR,
-        [0,0,-1.65]
+    let barrel=new THREE.Mesh(
+        new THREE.BoxGeometry(.1,.1,1.3),
+        gunMaterial(0x111111)
     );
+
+    barrel.position.z=-1.65;
+    gunModel.add(barrel);
+
 
     /* STOCK */
 
-    addBox(
-        gunModel,
-        [.25,.3,.55],
-        0x333333,
-        [0,0,.7]
+    let stock=new THREE.Mesh(
+        new THREE.BoxGeometry(.25,.3,.55),
+        gunMaterial(0x333333)
     );
+
+    stock.position.z=.7;
+    gunModel.add(stock);
+
 
     /* =================================================
        SNIPER SCOPE
@@ -1192,44 +960,73 @@ function createSniperModel(){
 
     gunModel.add(scopeGroup);
 
-    addPart(
-        scopeGroup,
-        new THREE.Mesh(
-            new THREE.CylinderGeometry(
-                .13,
-                .13,
-                .65,
-                12
-            ),
-            standardMaterial(SIGHT_COLOR)
+
+    let scopeTube=new THREE.Mesh(
+        new THREE.CylinderGeometry(
+            .13,
+            .13,
+            .65,
+            12
         ),
-        [0,.25,-.45],
-        [Math.PI/2,0,0]
+        gunMaterial(0x111111)
     );
 
-    /* SCOPE RINGS */
+    scopeTube.rotation.x=Math.PI/2;
 
-    for(
-        let ringZ of
-        [-.78,-.12]
-    ){
+    scopeTube.position.set(
+        0,
+        .25,
+        -.45
+    );
 
-        addPart(
-            scopeGroup,
-            new THREE.Mesh(
-                new THREE.TorusGeometry(
-                    .14,
-                    .035,
-                    8,
-                    16
-                ),
-                standardMaterial(SIGHT_COLOR)
-            ),
-            [0,.25,ringZ],
-            [Math.PI/2,0,0]
-        );
+    scopeGroup.add(scopeTube);
 
-    }
+
+    /* FRONT SCOPE RING */
+
+    let frontRing=new THREE.Mesh(
+        new THREE.TorusGeometry(
+            .14,
+            .035,
+            8,
+            16
+        ),
+        gunMaterial(0x111111)
+    );
+
+    frontRing.rotation.x=Math.PI/2;
+
+    frontRing.position.set(
+        0,
+        .25,
+        -.78
+    );
+
+    scopeGroup.add(frontRing);
+
+
+    /* REAR SCOPE RING */
+
+    let rearRing=new THREE.Mesh(
+        new THREE.TorusGeometry(
+            .14,
+            .035,
+            8,
+            16
+        ),
+        gunMaterial(0x111111)
+    );
+
+    rearRing.rotation.x=Math.PI/2;
+
+    rearRing.position.set(
+        0,
+        .25,
+        -.12
+    );
+
+    scopeGroup.add(rearRing);
+
 
     /* =================================================
        RED DOT SIGHT
@@ -1241,83 +1038,187 @@ function createSniperModel(){
 
     gunModel.add(redDotGroup);
 
-    addBox(
-        redDotGroup,
-        [.18,.06,.28],
-        SIGHT_COLOR,
-        [0,.42,-.25]
+
+    let redDotBase=new THREE.Mesh(
+        new THREE.BoxGeometry(
+            .18,
+            .06,
+            .28
+        ),
+        gunMaterial(0x111111)
     );
 
-    addBox(
-        redDotGroup,
-        [.2,.18,.28],
-        0x222222,
-        [0,.52,-.25]
+    redDotBase.position.set(
+        0,
+        .42,
+        -.25
     );
+
+    redDotGroup.add(redDotBase);
+
+
+    let redDotHousing=new THREE.Mesh(
+        new THREE.BoxGeometry(
+            .2,
+            .18,
+            .28
+        ),
+        gunMaterial(0x222222)
+    );
+
+    redDotHousing.position.set(
+        0,
+        .52,
+        -.25
+    );
+
+    redDotGroup.add(redDotHousing);
+
 
     /* RED DOT GLASS */
 
-    addBox(
-        redDotGroup,
-        [.13,.1,.02],
+    let redDotGlass=new THREE.Mesh(
+        new THREE.BoxGeometry(
+            .13,
+            .1,
+            .02
+        ),
         new THREE.MeshBasicMaterial({
             color:0x330000,
             transparent:true,
             opacity:.8
-        }),
-        [0,.52,-.395]
+        })
     );
+
+    redDotGlass.position.set(
+        0,
+        .52,
+        -.395
+    );
+
+    redDotGroup.add(redDotGlass);
+
 
     /* ACTUAL RED DOT */
 
-    addPart(
-        redDotGroup,
-        new THREE.Mesh(
-            new THREE.SphereGeometry(
-                .025,
-                8,
-                8
-            ),
-            new THREE.MeshBasicMaterial({
-                color:0xff0000
-            })
+    let redDot=new THREE.Mesh(
+        new THREE.SphereGeometry(
+            .025,
+            8,
+            8
         ),
-        [0,.52,-.41]
+        new THREE.MeshBasicMaterial({
+            color:0xff0000
+        })
     );
 
-    /* SNIPER SIGHTS */
-
-    addIronSight(
-        gunModel,
-        {
-            baseSize:[.1,.07,.1],
-            baseY:.17,
-            postSize:[.035,.14,.035],
-            postY:.25,
-            z:-1.55
-        }
+    redDot.position.set(
+        0,
+        .52,
+        -.41
     );
 
-    addIronSight(
-        gunModel,
-        {
-            baseSize:[.12,.08,.12],
-            baseY:.18,
-            postSize:[.035,.12,.035],
-            postY:.25,
-            postOffsets:[-.05,.05],
-            z:.02
-        }
+    redDotGroup.add(redDot);
+
+
+    /* =================================================
+       SNIPER FRONT SIGHT
+    ================================================= */
+
+    let frontSightBase=new THREE.Mesh(
+        new THREE.BoxGeometry(
+            .1,
+            .07,
+            .1
+        ),
+        gunMaterial(0x111111)
     );
+
+    frontSightBase.position.set(
+        0,
+        .17,
+        -1.55
+    );
+
+    gunModel.add(frontSightBase);
+
+
+    let frontSightPost=new THREE.Mesh(
+        new THREE.BoxGeometry(
+            .035,
+            .14,
+            .035
+        ),
+        gunMaterial(0x111111)
+    );
+
+    frontSightPost.position.set(
+        0,
+        .25,
+        -1.55
+    );
+
+    gunModel.add(frontSightPost);
+
+
+    /* =================================================
+       SNIPER REAR SIGHT
+    ================================================= */
+
+    let rearSightBase=new THREE.Mesh(
+        new THREE.BoxGeometry(
+            .12,
+            .08,
+            .12
+        ),
+        gunMaterial(0x111111)
+    );
+
+    rearSightBase.position.set(
+        0,
+        .18,
+        .02
+    );
+
+    gunModel.add(rearSightBase);
+
+
+    let rearSightLeft=new THREE.Mesh(
+        new THREE.BoxGeometry(
+            .035,
+            .12,
+            .035
+        ),
+        gunMaterial(0x111111)
+    );
+
+    rearSightLeft.position.set(
+        -.05,
+        .25,
+        .02
+    );
+
+    gunModel.add(rearSightLeft);
+
+
+    let rearSightRight=new THREE.Mesh(
+        new THREE.BoxGeometry(
+            .035,
+            .12,
+            .035
+        ),
+        gunMaterial(0x111111)
+    );
+
+    rearSightRight.position.set(
+        .05,
+        .25,
+        .02
+    );
+
+    gunModel.add(rearSightRight);
 
 }
-
-const gunBuilders={
-    AR:createARModel,
-    SMG:createSMGModel,
-    PISTOL:createPistolModel,
-    SNIPER:createSniperModel
-};
 
 /* GUN ANIMATION */
 
@@ -1462,55 +1363,48 @@ let airdropId=0;
 
 function showAirdropMessage(text){
 
-    flashElement(
-        "airdropMessage",
-        2200,
-        text
+    let el=document.getElementById(
+        "airdropMessage"
+    );
+
+    el.textContent=text;
+    el.style.opacity=1;
+
+    setTimeout(
+        function(){
+
+            el.style.opacity=0;
+
+        },
+        2200
     );
 
 }
 
 function showAirdropInfo(text){
 
-    flashElement(
-        "airdropInfo",
-        4500,
-        text
+    let el=document.getElementById(
+        "airdropInfo"
     );
+
+    el.textContent=text;
+    el.style.opacity=1;
+
+}
+
+function hideAirdropInfo(){
+
+    document.getElementById(
+        "airdropInfo"
+    ).style.opacity=0;
 
 }
 
 function randomAirdropPosition(){
 
-    for(let i=0;i<40;i++){
-
-        let x=
-            randomRange(-100,100);
-
-        let z=
-            randomRange(-100,100);
-
-        if(
-            !circleIntersectsWall(
-                x,
-                z,
-                2
-            )
-        ){
-
-            return {
-                x:x,
-                z:z
-            };
-
-        }
-
-    }
-
-    return {
-        x:0,
-        z:0
-    };
+    return GameCore.randomAirdropPosition(
+        walls
+    );
 
 }
 
@@ -1526,14 +1420,20 @@ function createAirdrop(){
 
     /* CRATE */
 
-    addBox(
-        group,
-        [3,2,3],
-        new THREE.MeshStandardMaterial({
-            color:0x8B4513,
-            roughness:.8
-        })
-    );
+    let crate=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                3,
+                2,
+                3
+            ),
+            new THREE.MeshStandardMaterial({
+                color:0x8B4513,
+                roughness:.8
+            })
+        );
+
+    group.add(crate);
 
     /* STRAPS */
 
@@ -1542,22 +1442,32 @@ function createAirdrop(){
             color:0xffff00
         });
 
-    addBox(
-        group,
-        [.25,2.1,3.1],
-        strapMaterial
-    );
+    let strap1=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .25,
+                2.1,
+                3.1
+            ),
+            strapMaterial
+        );
 
-    addBox(
-        group,
-        [3.1,2.1,.25],
-        strapMaterial
-    );
+    let strap2=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                3.1,
+                2.1,
+                .25
+            ),
+            strapMaterial
+        );
+
+    group.add(strap1);
+    group.add(strap2);
 
     /* PARACHUTE */
 
-    addPart(
-        group,
+    let parachute=
         new THREE.Mesh(
             new THREE.SphereGeometry(
                 5,
@@ -1572,9 +1482,11 @@ function createAirdrop(){
                 color:0xffffff,
                 side:THREE.DoubleSide
             })
-        ),
-        [0,10,0]
-    );
+        );
+
+    parachute.position.y=10;
+
+    group.add(parachute);
 
     /* ROPES */
 
@@ -1655,7 +1567,8 @@ function updateAirdrops(delta){
         createAirdrop();
 
         nextAirdropTimer=
-            randomRange(30,60);
+            30+
+            Math.random()*30;
 
     }
 
@@ -1725,9 +1638,11 @@ function updateAirdrops(delta){
         }
 
         let distance=
-            horizontalDistance(
-                player.position,
-                drop.position
+            Math.hypot(
+                player.position.x-
+                    drop.position.x,
+                player.position.z-
+                    drop.position.z
             );
 
         if(
@@ -1764,96 +1679,38 @@ function collectAirdrop(drop){
     /* HEALTH */
 
     let healthAmount=
-        randomInt(25,50);
+        25+
+        Math.floor(
+            Math.random()*26
+        );
 
     health=
-        Math.min(
-            100,
-            health+healthAmount
+        GameCore.airdropHealth(
+            health,
+            healthAmount
         );
 
     /* AMMO */
 
-    for(
-        let key in weapons
-    ){
-
-        let weapon=
-            weapons[key];
-
-        weapon.reserve+=
-            Math.ceil(
-                weapon.magazineSize*
-                randomRange(.5,1)
-            );
-
-    }
+    GameCore.restockReserves(
+        weapons
+    );
 
     /* RANDOM UPGRADES */
 
     let upgradeCount=
-        randomInt(1,4);
+        1+
+        Math.floor(
+            Math.random()*4
+        );
 
-    let available=
-        upgradeTypes.slice();
+    let upgradesReceived=
+        GameCore.applyUpgrades(
+            weapons[currentWeapon],
+            upgradeCount
+        );
 
-    let upgradesReceived=[];
-
-    for(
-        let i=0;
-        i<upgradeCount;
-        i++
-    ){
-
-        if(
-            available.length===0
-        )break;
-
-        let index=
-            Math.floor(
-                Math.random()*
-                available.length
-            );
-
-        let upgrade=
-            available.splice(
-                index,
-                1
-            )[0];
-
-        let weapon=
-            weapons[currentWeapon];
-
-        if(
-            !weapon.upgrades
-        ){
-
-            weapon.upgrades=[];
-
-        }
-
-        if(
-            weapon.upgrades.length<
-            MAX_UPGRADES
-        ){
-
-            upgrade.apply(
-                weapon
-            );
-
-            weapon.upgrades.push(
-                upgrade.type
-            );
-
-            upgradesReceived.push(
-                upgrade.name
-            );
-
-        }
-
-    }
-
-    score+=500;
+    score+=GameCore.AIRDROP_SCORE;
 
     showScorePopup(
         "+500 AIRDROP"
@@ -1887,6 +1744,11 @@ function collectAirdrop(drop){
         text
     );
 
+    setTimeout(
+        hideAirdropInfo,
+        4500
+    );
+
     updateHUD();
 
     if(drop.parent){
@@ -1913,14 +1775,14 @@ function collectAirdrop(drop){
 
 function updateAirdropHUD(){
 
-    setText(
-        "airdropCount",
+    document.getElementById(
+        "airdropCount"
+    ).textContent=
         airdrops.filter(
             d=>
                 d &&
                 !d.userData.collected
-        ).length
-    );
+        ).length;
 
 }
 
@@ -2165,59 +2027,12 @@ function circleIntersectsWall(
     radius
 ){
 
-    for(
-        let wall of walls
-    ){
-
-        let halfWidth=
-            wall.userData.halfWidth;
-
-        let halfDepth=
-            wall.userData.halfDepth;
-
-        let closestX=
-            Math.max(
-                wall.position.x-
-                    halfWidth,
-                Math.min(
-                    x,
-                    wall.position.x+
-                        halfWidth
-                )
-            );
-
-        let closestZ=
-            Math.max(
-                wall.position.z-
-                    halfDepth,
-                Math.min(
-                    z,
-                    wall.position.z+
-                        halfDepth
-                )
-            );
-
-        let dx=
-            x-
-            closestX;
-
-        let dz=
-            z-
-            closestZ;
-
-        if(
-            dx*dx+
-            dz*dz<
-            radius*radius
-        ){
-
-            return true;
-
-        }
-
-    }
-
-    return false;
+    return GameCore.circleIntersectsWall(
+        walls,
+        x,
+        z,
+        radius
+    );
 
 }
 
@@ -2227,45 +2042,12 @@ function moveWithCollision(
     radius
 ){
 
-    let newX=
-        object.position.x+
-        movement.x;
-
-    let newZ=
-        object.position.z;
-
-    if(
-        !circleIntersectsWall(
-            newX,
-            newZ,
-            radius
-        )
-    ){
-
-        object.position.x=
-            newX;
-
-    }
-
-    newX=
-        object.position.x;
-
-    newZ=
-        object.position.z+
-        movement.z;
-
-    if(
-        !circleIntersectsWall(
-            newX,
-            newZ,
-            radius
-        )
-    ){
-
-        object.position.z=
-            newZ;
-
-    }
+    GameCore.moveWithCollision(
+        walls,
+        object.position,
+        movement,
+        radius
+    );
 
 }
 
@@ -2286,8 +2068,9 @@ function startWave(){
     waveInProgress=true;
 
     waveEnemiesRemaining=
-        5+
-        (currentWave-1)*2;
+        GameCore.waveEnemyCount(
+            currentWave
+        );
 
     waveSpawnTimer=0;
 
@@ -2311,7 +2094,10 @@ function updateWaveSystem(delta){
     if(!waveInProgress)return;
 
     let activeEnemies=
-        aliveEnemyCount();
+        enemies.filter(
+            enemy=>
+                enemy.alive
+        ).length;
 
     if(
         waveEnemiesRemaining>0&&
@@ -2336,7 +2122,10 @@ function updateWaveSystem(delta){
     }
 
     let aliveEnemies=
-        aliveEnemyCount();
+        enemies.filter(
+            enemy=>
+                enemy.alive
+        ).length;
 
     if(
         waveEnemiesRemaining<=0&&
@@ -2346,7 +2135,9 @@ function updateWaveSystem(delta){
         waveInProgress=false;
 
         let waveBonus=
-            currentWave*250;
+            GameCore.waveBonus(
+                currentWave
+            );
 
         score+=waveBonus;
 
@@ -2386,18 +2177,22 @@ function spawnWaveEnemy(){
     ){
 
         let spawn=
-            pickRandom(spawnPoints);
+            spawnPoints[
+                Math.floor(
+                    Math.random()*
+                    spawnPoints.length
+                )
+            ];
 
         x=spawn[0];
         z=spawn[1];
 
         let distance=
-            horizontalDistance(
-                {
-                    x:x,
-                    z:z
-                },
-                player.position
+            Math.hypot(
+                x-
+                    player.position.x,
+                z-
+                    player.position.z
             );
 
         if(
@@ -2443,72 +2238,144 @@ function createEnemy(
             roughness:.5
         });
 
-    addBox(
-        enemy,
-        [2,2.2,1.5],
-        bodyMaterial,
-        [0,2.2,0]
-    );
+    let body=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                2,
+                2.2,
+                1.5
+            ),
+            bodyMaterial
+        );
 
-    addBox(
-        enemy,
-        [1.5,1.2,1.5],
-        new THREE.MeshStandardMaterial({
-            color:0x555555,
-            metalness:.8,
-            roughness:.3
-        }),
-        [0,4,0]
-    );
+    body.position.y=2.2;
+
+    enemy.add(body);
+
+    let head=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                1.5,
+                1.2,
+                1.5
+            ),
+            new THREE.MeshStandardMaterial({
+                color:0x555555,
+                metalness:.8,
+                roughness:.3
+            })
+        );
+
+    head.position.y=4;
+
+    enemy.add(head);
 
     let eyeMaterial=
         new THREE.MeshBasicMaterial({
             color:0xffff00
         });
 
-    for(
-        let side of
-        [-.4,.4]
-    ){
-
-        addBox(
-            enemy,
-            [.25,.25,.1],
-            eyeMaterial,
-            [side,4,-.78]
+    let eyeGeometry=
+        new THREE.BoxGeometry(
+            .25,
+            .25,
+            .1
         );
 
-    }
+    let leftEye=
+        new THREE.Mesh(
+            eyeGeometry,
+            eyeMaterial
+        );
+
+    leftEye.position.set(
+        -.4,
+        4,
+        -.78
+    );
+
+    let rightEye=
+        new THREE.Mesh(
+            eyeGeometry,
+            eyeMaterial
+        );
+
+    rightEye.position.set(
+        .4,
+        4,
+        -.78
+    );
+
+    enemy.add(leftEye);
+    enemy.add(rightEye);
+
+    let legGeometry=
+        new THREE.BoxGeometry(
+            .55,
+            1.7,
+            .55
+        );
 
     let leftLeg=
-        addBox(
-            enemy,
-            [.55,1.7,.55],
-            bodyMaterial,
-            [-.5,.8,0]
+        new THREE.Mesh(
+            legGeometry,
+            bodyMaterial
         );
 
     let rightLeg=
-        addBox(
-            enemy,
-            [.55,1.7,.55],
-            bodyMaterial,
-            [.5,.8,0]
+        new THREE.Mesh(
+            legGeometry,
+            bodyMaterial
         );
 
-    for(
-        let side of
-        [-1.3,1.3]
-    ){
+    leftLeg.position.set(
+        -.5,
+        .8,
+        0
+    );
 
-        addBox(
-            enemy,
-            [.5,1.8,.5],
-            bodyMaterial,
-            [side,2.2,0]
+    rightLeg.position.set(
+        .5,
+        .8,
+        0
+    );
+
+    enemy.add(leftLeg);
+    enemy.add(rightLeg);
+
+    let armGeometry=
+        new THREE.BoxGeometry(
+            .5,
+            1.8,
+            .5
         );
 
-    }
+    let leftArm=
+        new THREE.Mesh(
+            armGeometry,
+            bodyMaterial
+        );
+
+    let rightArm=
+        new THREE.Mesh(
+            armGeometry,
+            bodyMaterial
+        );
+
+    leftArm.position.set(
+        -1.3,
+        2.2,
+        0
+    );
+
+    rightArm.position.set(
+        1.3,
+        2.2,
+        0
+    );
+
+    enemy.add(leftArm);
+    enemy.add(rightArm);
 
     enemy.position.set(
         x,
@@ -2524,10 +2391,12 @@ function createEnemy(
     enemy.attackRange=60;
 
     enemy.moveSpeed=
-        randomRange(1.2,1.7);
+        1.2+
+        Math.random()*.5;
 
     enemy.shootTimer=
-        randomRange(1,3);
+        1+
+        Math.random()*2;
 
     enemy.walkTime=
         Math.random()*10;
@@ -2562,28 +2431,13 @@ function killEnemy(
 
     kills++;
 
-    let points=100;
-
-    if(
-        currentWeapon==="SNIPER"
-    ){
-
-        points=250;
-
-    }
-
-    let distance=
-        player.position.distanceTo(
-            enemy.position
+    let points=
+        GameCore.killScore(
+            currentWeapon,
+            player.position.distanceTo(
+                enemy.position
+            )
         );
-
-    if(
-        distance>75
-    ){
-
-        points+=100;
-
-    }
 
     score+=points;
 
@@ -2598,15 +2452,38 @@ function killEnemy(
 
 /* SCORE POPUP */
 
+let scorePopupTimer=null;
+
 function showScorePopup(
     text
 ){
 
-    flashElement(
-        "scorePopup",
-        700,
-        text
-    );
+    let popup=
+        document.getElementById(
+            "scorePopup"
+        );
+
+    popup.textContent=text;
+
+    popup.style.opacity=1;
+
+    if(scorePopupTimer){
+
+        clearTimeout(
+            scorePopupTimer
+        );
+
+    }
+
+    scorePopupTimer=
+        setTimeout(
+            function(){
+
+                popup.style.opacity=0;
+
+            },
+            700
+        );
 
 }
 
@@ -2626,13 +2503,20 @@ function switchWeapon(
 
     isADS=false;
 
-    setCameraFOV(
+    camera.fov=
         weapons[
             currentWeapon
-        ].normalFOV
-    );
+        ].normalFOV;
 
-    setScopeUI(false);
+    camera.updateProjectionMatrix();
+
+    document.getElementById(
+        "scopeOverlay"
+    ).style.display="none";
+
+    document.getElementById(
+        "crosshair"
+    ).style.display="block";
 
     createGunModel();
 
@@ -2665,42 +2549,33 @@ function updateWeaponHUD(){
     let weapon=
         weapons[currentWeapon];
 
-    setText(
-        "weaponName",
-        weapon.name
-    );
+    document.getElementById(
+        "weaponName"
+    ).textContent=
+        weapon.name;
 
-    setText(
-        "ammo",
-        weapon.ammo
-    );
+    document.getElementById(
+        "ammo"
+    ).textContent=
+        weapon.ammo;
 
-    setText(
-        "reserve",
-        weapon.reserve
-    );
+    document.getElementById(
+        "reserve"
+    ).textContent=
+        weapon.reserve;
 
-    setText(
-        "adsStatus",
+    let upgradeCount=
+        weapon.upgrades?
+        weapon.upgrades.length:
+        0;
 
-        isADS
-
-        ?
-
-        currentWeapon==="SNIPER"
-
-        ?
-
-        "SCOPED • 1 SHOT"
-
-        :
-
-        "IRON SIGHTS / ADS"
-
-        :
-
-        "HIP FIRE"
-    );
+    document.getElementById(
+        "adsStatus"
+    ).textContent=
+        GameCore.adsStatusText(
+            currentWeapon,
+            isADS
+        );
 
 }
 
@@ -2714,27 +2589,42 @@ function toggleADS(){
 
     isADS=!isADS;
 
-    let weapon=
-        weapons[currentWeapon];
+    let view=
+        GameCore.adsView(
+            weapons[currentWeapon],
+            currentWeapon,
+            isADS
+        );
 
-    let scoped=
-        isADS&&
-        currentWeapon==="SNIPER";
+    camera.fov=view.fov;
 
-    setCameraFOV(
-        isADS?
-            weapon.adsFOV:
-            weapon.normalFOV
-    );
+    camera.updateProjectionMatrix();
 
-    setScopeUI(scoped);
+    document.getElementById(
+        "scopeOverlay"
+    ).style.display=
+        view.scopeOverlay?
+            "block":
+            "none";
+
+    document.getElementById(
+        "crosshair"
+    ).style.display=
+        view.crosshair?
+            "block":
+            "none";
 
     /*
-       Hide the physical sniper scope
-       while the scope overlay is shown.
+       Hide the weapon while the
+       scope overlay is showing.
     */
 
-    setPhysicalScopeVisible(!scoped);
+    if(gunModel){
+
+        gunModel.visible=
+            view.gunModel;
+
+    }
 
     updateWeaponHUD();
 
@@ -2747,10 +2637,14 @@ function toggleADS(){
 function setupControls(){
 
     let joystick=
-        el("joystick");
+        document.getElementById(
+            "joystick"
+        );
 
     let stick=
-        el("stick");
+        document.getElementById(
+            "stick"
+        );
 
     joystick.addEventListener(
         "touchstart",
@@ -2940,10 +2834,12 @@ function setupControls(){
                         dy*.004;
 
                     rotationX=
-                        clamp(
-                            rotationX,
+                        Math.max(
                             -1.3,
-                            1.3
+                            Math.min(
+                                1.3,
+                                rotationX
+                            )
                         );
 
                     player.rotation.y=
@@ -3001,16 +2897,23 @@ function setupControls(){
     /* FIRE */
 
     let fireButton=
-        el("fire");
+        document.getElementById(
+            "fire"
+        );
 
-    onTouchStart(
-        fireButton,
-        function(){
+    fireButton.addEventListener(
+        "touchstart",
+        function(e){
+
+            e.preventDefault();
 
             isFiring=true;
 
             shoot();
 
+        },
+        {
+            passive:false
         }
     );
 
@@ -3039,16 +2942,38 @@ function setupControls(){
 
     /* ADS */
 
-    onTouchStart(
-        el("ads"),
-        toggleADS
+    document.getElementById(
+        "ads"
+    ).addEventListener(
+        "touchstart",
+        function(e){
+
+            e.preventDefault();
+
+            toggleADS();
+
+        },
+        {
+            passive:false
+        }
     );
 
     /* RELOAD */
 
-    onTouchStart(
-        el("reload"),
-        reload
+    document.getElementById(
+        "reload"
+    ).addEventListener(
+        "touchstart",
+        function(e){
+
+            e.preventDefault();
+
+            reload();
+
+        },
+        {
+            passive:false
+        }
     );
 
     /* WEAPONS */
@@ -3060,14 +2985,19 @@ function setupControls(){
         .forEach(
             button=>{
 
-                onTouchStart(
-                    button,
-                    function(){
+                button.addEventListener(
+                    "touchstart",
+                    function(e){
+
+                        e.preventDefault();
 
                         switchWeapon(
                             button.dataset.weapon
                         );
 
+                    },
+                    {
+                        passive:false
                     }
                 );
 
@@ -3076,7 +3006,9 @@ function setupControls(){
 
     /* RESTART */
 
-    el("restart").addEventListener(
+    document.getElementById(
+        "restart"
+    ).addEventListener(
         "click",
         function(){
 
@@ -3159,17 +3091,21 @@ function movePlayer(delta){
     }
 
     player.position.x=
-        clamp(
-            player.position.x,
+        Math.max(
             -120,
-            120
+            Math.min(
+                120,
+                player.position.x
+            )
         );
 
     player.position.z=
-        clamp(
-            player.position.z,
+        Math.max(
             -120,
-            120
+            Math.min(
+                120,
+                player.position.z
+            )
         );
 
 }
@@ -3188,35 +3124,30 @@ function shoot(){
     const now=
         performance.now();
 
-    if(
-        now-lastPlayerShot<
-        weapon.fireRate
-    ){
-
-        return;
-
-    }
-
     /*
-       SNIPER:
-       MUST BE SCOPED TO FIRE
+       SNIPER MUST BE SCOPED TO FIRE
        AND ALWAYS FIRES ONE SHOT.
     */
 
     if(
-        currentWeapon==="SNIPER"&&
-        !isADS
+        !GameCore.canFire(
+            weapon,
+            currentWeapon,
+            now,
+            lastPlayerShot,
+            isADS
+        )
     ){
 
-        return;
+        if(
+            weapon.ammo<=0&&
+            now-lastPlayerShot>=
+                weapon.fireRate
+        ){
 
-    }
+            reload();
 
-    if(
-        weapon.ammo<=0
-    ){
-
-        reload();
+        }
 
         return;
 
@@ -3244,10 +3175,31 @@ function shoot(){
        OTHER WEAPONS USE SPREAD.
     */
 
-    applySpread(
-        direction,
-        weapon.spread
-    );
+    if(
+        weapon.spread>0
+    ){
+
+        direction.x+=
+            (
+                Math.random()-.5
+            )*
+            weapon.spread;
+
+        direction.y+=
+            (
+                Math.random()-.5
+            )*
+            weapon.spread;
+
+        direction.z+=
+            (
+                Math.random()-.5
+            )*
+            weapon.spread;
+
+        direction.normalize();
+
+    }
 
     const start=
         new THREE.Vector3();
@@ -3796,35 +3748,16 @@ function removeProjectile(
 
 function reload(){
 
-    const weapon=
-        weapons[currentWeapon];
-
-    const needed=
-        weapon.magazineSize-
-        weapon.ammo;
-
-    if(
-        needed<=0||
-        weapon.reserve<=0
-    ){
-
-        return;
-
-    }
-
     const amount=
-        Math.min(
-            needed,
-            weapon.reserve
+        GameCore.reloadWeapon(
+            weapons[currentWeapon]
         );
 
-    weapon.ammo+=
-        amount;
+    if(amount>0){
 
-    weapon.reserve-=
-        amount;
+        updateWeaponHUD();
 
-    updateWeaponHUD();
+    }
 
 }
 
@@ -3954,7 +3887,9 @@ function updateEnemies(
         ){
 
             enemy.shootTimer=
-                randomRange(1.5,3);
+                1.5+
+                Math.random()*
+                1.5;
 
             enemyShoot(
                 enemy
@@ -3996,10 +3931,22 @@ function enemyShoot(
 
     direction.normalize();
 
-    applySpread(
-        direction,
-        .035
-    );
+    direction.x+=
+        (
+            Math.random()-.5
+        )*.035;
+
+    direction.y+=
+        (
+            Math.random()-.5
+        )*.035;
+
+    direction.z+=
+        (
+            Math.random()-.5
+        )*.035;
+
+    direction.normalize();
 
     let raycaster=
         new THREE.Raycaster(
@@ -4051,19 +3998,27 @@ function takeDamage(
 
     if(gameOver)return;
 
-    health-=
-        damage;
-
     health=
-        Math.max(
-            0,
-            health
+        GameCore.applyDamage(
+            health,
+            damage
         );
 
     updateHUD();
 
-    flashElement(
-        "damageFlash",
+    let flash=
+        document.getElementById(
+            "damageFlash"
+        );
+
+    flash.style.opacity=1;
+
+    setTimeout(
+        function(){
+
+            flash.style.opacity=0;
+
+        },
         120
     );
 
@@ -4083,22 +4038,28 @@ function takeDamage(
 
 function updateHUD(){
 
-    setText(
-        "scoreDisplay",
-        score
-    );
+    document.getElementById(
+        "scoreDisplay"
+    ).textContent=
+        score;
 
-    setText(
-        "kills",
-        kills
-    );
+    document.getElementById(
+        "kills"
+    ).textContent=
+        kills;
 
-    setText(
-        "enemyCount",
-        aliveEnemyCount()
-    );
+    document.getElementById(
+        "enemyCount"
+    ).textContent=
 
-    el("health").style.width=
+        enemies.filter(
+            e=>
+                e.alive
+        ).length;
+
+    document.getElementById(
+        "health"
+    ).style.width=
         health+
         "%";
 
@@ -4112,10 +4073,10 @@ function updateHUD(){
 
 function updateWaveHUD(){
 
-    setText(
-        "wave",
-        currentWave
-    );
+    document.getElementById(
+        "wave"
+    ).textContent=
+        currentWave;
 
 }
 
@@ -4123,12 +4084,34 @@ function updateWaveHUD(){
    HIT MARKER
 ===================================================== */
 
+let hitMarkerTimer=null;
+
 function showHitMarker(){
 
-    flashElement(
-        "hitMarker",
-        100
-    );
+    let marker=
+        document.getElementById(
+            "hitMarker"
+        );
+
+    marker.style.opacity=1;
+
+    if(hitMarkerTimer){
+
+        clearTimeout(
+            hitMarkerTimer
+        );
+
+    }
+
+    hitMarkerTimer=
+        setTimeout(
+            function(){
+
+                marker.style.opacity=0;
+
+            },
+            100
+        );
 
 }
 
@@ -4144,21 +4127,21 @@ function loseGame(){
 
     isFiring=false;
 
-    setText(
-        "messageText",
-        "GAME OVER"
-    );
+    document.getElementById(
+        "messageText"
+    ).textContent=
+        "GAME OVER";
 
-    setText(
-        "finalScore",
+    document.getElementById(
+        "finalScore"
+    ).textContent=
         "FINAL SCORE: "+
-        score
-    );
+        score;
 
-    setDisplay(
-        "message",
-        true
-    );
+    document.getElementById(
+        "message"
+    ).style.display=
+        "block";
 
 }
 
