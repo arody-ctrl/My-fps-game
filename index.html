@@ -154,30 +154,6 @@ canvas {
     z-index: 4;
 }
 
-#scopeOverlay::before {
-    content: "";
-    position: absolute;
-    width: 80vmin;
-    height: 80vmin;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    border: 5px solid black;
-    border-radius: 50%;
-    box-shadow:
-        0 0 0 100vmax rgba(0,0,0,0.85);
-}
-
-#scopeOverlay::after {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    color: black;
-    font-size: 35px;
-    font-weight: bold;
-}
 
 /* =========================
    HIT MARKER
@@ -430,7 +406,7 @@ canvas {
 
 </div>
 
-<div id="crosshair"></div>
+<div id="crosshair">+</div>
 
 <div id="scopeOverlay">^</div>
 
