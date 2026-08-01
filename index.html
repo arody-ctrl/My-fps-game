@@ -2418,62 +2418,6 @@ function shoot() {
 
 }
 
-/* =====================================================
-   PROJECTILES
-===================================================== */
-
-function createProjectile(
-    start,
-    direction,
-    playerProjectile,
-    damage = 25,
-    speed = 125,
-    life = 4
-) {
-
-    let geometry =
-        new THREE.SphereGeometry(
-            playerProjectile
-                ? 0.16
-                : 0.18,
-            8,
-            8
-        );
-
-    let material =
-        new THREE.MeshBasicMaterial({
-            color:
-                playerProjectile
-                    ? 0xffff00
-                    : 0xff0000
-        });
-
-    let projectile =
-        new THREE.Mesh(
-            geometry,
-            material
-        );
-
-    projectile.position.copy(start);
-
-    projectile.direction =
-        direction.clone().normalize();
-
-    projectile.speed = speed;
-
-    projectile.life = life;
-
-    projectile.playerProjectile =
-        playerProjectile;
-
-    projectile.damage = damage;
-
-    scene.add(projectile);
-
-    projectiles.push(projectile);
-
-}
-
 function updateProjectiles(delta) {
 
     for (
