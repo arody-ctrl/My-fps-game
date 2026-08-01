@@ -2615,23 +2615,14 @@ function toggleADS(){
             "none";
 
     /*
-       Hide the physical sniper scope while
-       the scope overlay is showing.
+       Hide the weapon while the
+       scope overlay is showing.
     */
 
     if(gunModel){
 
-        let physicalScope=
-            gunModel.getObjectByName(
-                "sniperScope"
-            );
-
-        if(physicalScope){
-
-            physicalScope.visible=
-                view.physicalScope;
-
-        }
+        gunModel.visible=
+            view.gunModel;
 
     }
 

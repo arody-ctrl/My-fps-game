@@ -577,7 +577,7 @@ function adsView(
             weapon.normalFOV,
         scopeOverlay:scoped,
         crosshair:!scoped,
-        physicalScope:!scoped
+        gunModel:!scoped
     };
 
 }

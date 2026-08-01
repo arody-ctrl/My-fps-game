@@ -115,7 +115,7 @@ describe("adsView", () => {
       fov: 55,
       scopeOverlay: false,
       crosshair: true,
-      physicalScope: true
+      gunModel: true
     });
   });
 
@@ -123,12 +123,12 @@ describe("adsView", () => {
     expect(adsView(weapons.AR, "AR", false).fov).toBe(75);
   });
 
-  it("swaps the crosshair for the scope overlay when the sniper is scoped", () => {
+  it("hides the crosshair and the gun behind the scope overlay when scoped", () => {
     expect(adsView(weapons.SNIPER, "SNIPER", true)).toEqual({
       fov: 18,
       scopeOverlay: true,
       crosshair: false,
-      physicalScope: false
+      gunModel: false
     });
   });
 
@@ -137,7 +137,7 @@ describe("adsView", () => {
       fov: 75,
       scopeOverlay: false,
       crosshair: true,
-      physicalScope: true
+      gunModel: true
     });
   });
 });
