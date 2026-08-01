@@ -476,6 +476,8 @@ canvas{
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
+<script src="src/game-core.js"></script>
+
 <script>
 
 /* =====================================================
@@ -502,69 +504,7 @@ let gameOver = false;
    WEAPONS
 ===================================================== */
 
-const weapons = {
-
-    AR:{
-        name:"ASSAULT RIFLE",
-        magazineSize:30,
-        ammo:30,
-        reserve:120,
-        damage:25,
-        fireRate:120,
-        projectileSpeed:110,
-        projectileLife:5,
-        spread:.008,
-        adsFOV:55,
-        normalFOV:75,
-        automatic:true
-    },
-
-    SMG:{
-        name:"SMG",
-        magazineSize:35,
-        ammo:35,
-        reserve:175,
-        damage:18,
-        fireRate:70,
-        projectileSpeed:95,
-        projectileLife:4,
-        spread:.025,
-        adsFOV:60,
-        normalFOV:75,
-        automatic:true
-    },
-
-    PISTOL:{
-        name:"PISTOL",
-        magazineSize:12,
-        ammo:12,
-        reserve:72,
-        damage:40,
-        fireRate:250,
-        projectileSpeed:100,
-        projectileLife:5,
-        spread:.01,
-        adsFOV:58,
-        normalFOV:75,
-        automatic:false
-    },
-
-    SNIPER:{
-        name:"SNIPER",
-        magazineSize:5,
-        ammo:5,
-        reserve:30,
-        damage:200,
-        fireRate:1100,
-        projectileSpeed:300,
-        projectileLife:10,
-        spread:0,
-        adsFOV:18,
-        normalFOV:75,
-        automatic:false
-    }
-
-};
+const weapons=GameCore.createWeapons();
 
 let currentWeapon="AR";
 let isADS=false;
@@ -576,75 +516,9 @@ let lastPlayerShot=0;
    MAX 4 UPGRADES PER WEAPON
 ===================================================== */
 
-const MAX_UPGRADES=4;
+const MAX_UPGRADES=GameCore.MAX_UPGRADES;
 
-const upgradeTypes=[
-
-    {
-        name:"DAMAGE +20%",
-        type:"damage",
-        apply:function(w){
-            w.damage=Math.round(w.damage*1.2);
-        }
-    },
-
-    {
-        name:"FIRE RATE +15%",
-        type:"fireRate",
-        apply:function(w){
-            w.fireRate=Math.max(
-                35,
-                Math.round(w.fireRate*.85)
-            );
-        }
-    },
-
-    {
-        name:"MAGAZINE +25%",
-        type:"magazine",
-        apply:function(w){
-
-            let oldSize=w.magazineSize;
-
-            w.magazineSize=Math.ceil(
-                w.magazineSize*1.25
-            );
-
-            w.ammo+=
-                w.magazineSize-oldSize;
-        }
-    },
-
-    {
-        name:"RESERVE AMMO +50%",
-        type:"reserve",
-        apply:function(w){
-
-            w.reserve+=Math.ceil(
-                w.reserve*.5
-            );
-        }
-    },
-
-    {
-        name:"PROJECTILE SPEED +25%",
-        type:"speed",
-        apply:function(w){
-
-            w.projectileSpeed*=1.25;
-        }
-    },
-
-    {
-        name:"ACCURACY +30%",
-        type:"accuracy",
-        apply:function(w){
-
-            w.spread*=.7;
-        }
-    }
-
-];
+const upgradeTypes=GameCore.upgradeTypes;
 
 /* =====================================================
    LOW POLY GUN
@@ -1528,37 +1402,9 @@ function hideAirdropInfo(){
 
 function randomAirdropPosition(){
 
-    for(let i=0;i<40;i++){
-
-        let x=
-            -100+
-            Math.random()*200;
-
-        let z=
-            -100+
-            Math.random()*200;
-
-        if(
-            !circleIntersectsWall(
-                x,
-                z,
-                2
-            )
-        ){
-
-            return {
-                x:x,
-                z:z
-            };
-
-        }
-
-    }
-
-    return {
-        x:0,
-        z:0
-    };
+    return GameCore.randomAirdropPosition(
+        walls
+    );
 
 }
 
@@ -1839,28 +1685,16 @@ function collectAirdrop(drop){
         );
 
     health=
-        Math.min(
-            100,
-            health+healthAmount
+        GameCore.airdropHealth(
+            health,
+            healthAmount
         );
 
     /* AMMO */
 
-    for(
-        let key in weapons
-    ){
-
-        let weapon=
-            weapons[key];
-
-        weapon.reserve+=
-            Math.ceil(
-                weapon.magazineSize*
-                (.5+
-                Math.random()*.5)
-            );
-
-    }
+    GameCore.restockReserves(
+        weapons
+    );
 
     /* RANDOM UPGRADES */
 
@@ -1870,66 +1704,13 @@ function collectAirdrop(drop){
             Math.random()*4
         );
 
-    let available=
-        upgradeTypes.slice();
+    let upgradesReceived=
+        GameCore.applyUpgrades(
+            weapons[currentWeapon],
+            upgradeCount
+        );
 
-    let upgradesReceived=[];
-
-    for(
-        let i=0;
-        i<upgradeCount;
-        i++
-    ){
-
-        if(
-            available.length===0
-        )break;
-
-        let index=
-            Math.floor(
-                Math.random()*
-                available.length
-            );
-
-        let upgrade=
-            available.splice(
-                index,
-                1
-            )[0];
-
-        let weapon=
-            weapons[currentWeapon];
-
-        if(
-            !weapon.upgrades
-        ){
-
-            weapon.upgrades=[];
-
-        }
-
-        if(
-            weapon.upgrades.length<
-            MAX_UPGRADES
-        ){
-
-            upgrade.apply(
-                weapon
-            );
-
-            weapon.upgrades.push(
-                upgrade.type
-            );
-
-            upgradesReceived.push(
-                upgrade.name
-            );
-
-        }
-
-    }
-
-    score+=500;
+    score+=GameCore.AIRDROP_SCORE;
 
     showScorePopup(
         "+500 AIRDROP"
@@ -2246,59 +2027,12 @@ function circleIntersectsWall(
     radius
 ){
 
-    for(
-        let wall of walls
-    ){
-
-        let halfWidth=
-            wall.userData.halfWidth;
-
-        let halfDepth=
-            wall.userData.halfDepth;
-
-        let closestX=
-            Math.max(
-                wall.position.x-
-                    halfWidth,
-                Math.min(
-                    x,
-                    wall.position.x+
-                        halfWidth
-                )
-            );
-
-        let closestZ=
-            Math.max(
-                wall.position.z-
-                    halfDepth,
-                Math.min(
-                    z,
-                    wall.position.z+
-                        halfDepth
-                )
-            );
-
-        let dx=
-            x-
-            closestX;
-
-        let dz=
-            z-
-            closestZ;
-
-        if(
-            dx*dx+
-            dz*dz<
-            radius*radius
-        ){
-
-            return true;
-
-        }
-
-    }
-
-    return false;
+    return GameCore.circleIntersectsWall(
+        walls,
+        x,
+        z,
+        radius
+    );
 
 }
 
@@ -2308,45 +2042,12 @@ function moveWithCollision(
     radius
 ){
 
-    let newX=
-        object.position.x+
-        movement.x;
-
-    let newZ=
-        object.position.z;
-
-    if(
-        !circleIntersectsWall(
-            newX,
-            newZ,
-            radius
-        )
-    ){
-
-        object.position.x=
-            newX;
-
-    }
-
-    newX=
-        object.position.x;
-
-    newZ=
-        object.position.z+
-        movement.z;
-
-    if(
-        !circleIntersectsWall(
-            newX,
-            newZ,
-            radius
-        )
-    ){
-
-        object.position.z=
-            newZ;
-
-    }
+    GameCore.moveWithCollision(
+        walls,
+        object.position,
+        movement,
+        radius
+    );
 
 }
 
@@ -2367,8 +2068,9 @@ function startWave(){
     waveInProgress=true;
 
     waveEnemiesRemaining=
-        5+
-        (currentWave-1)*2;
+        GameCore.waveEnemyCount(
+            currentWave
+        );
 
     waveSpawnTimer=0;
 
@@ -2433,7 +2135,9 @@ function updateWaveSystem(delta){
         waveInProgress=false;
 
         let waveBonus=
-            currentWave*250;
+            GameCore.waveBonus(
+                currentWave
+            );
 
         score+=waveBonus;
 
@@ -2727,28 +2431,13 @@ function killEnemy(
 
     kills++;
 
-    let points=100;
-
-    if(
-        currentWeapon==="SNIPER"
-    ){
-
-        points=250;
-
-    }
-
-    let distance=
-        player.position.distanceTo(
-            enemy.position
+    let points=
+        GameCore.killScore(
+            currentWeapon,
+            player.position.distanceTo(
+                enemy.position
+            )
         );
-
-    if(
-        distance>75
-    ){
-
-        points+=100;
-
-    }
 
     score+=points;
 
@@ -2883,24 +2572,10 @@ function updateWeaponHUD(){
     document.getElementById(
         "adsStatus"
     ).textContent=
-
-        isADS
-
-        ?
-
-        currentWeapon==="SNIPER"
-
-        ?
-
-        "SCOPED • 1 SHOT"
-
-        :
-
-        "IRON SIGHTS / ADS"
-
-        :
-
-        "HIP FIRE";
+        GameCore.adsStatusText(
+            currentWeapon,
+            isADS
+        );
 
 }
 
@@ -2914,56 +2589,42 @@ function toggleADS(){
 
     isADS=!isADS;
 
-    let weapon=
-        weapons[currentWeapon];
+    let view=
+        GameCore.adsView(
+            weapons[currentWeapon],
+            currentWeapon,
+            isADS
+        );
 
-    if(isADS){
-
-        camera.fov=
-            weapon.adsFOV;
-
-        camera.updateProjectionMatrix();
-
-      if(currentWeapon==="SNIPER"){
-
-    document.getElementById(
-        "scopeOverlay"
-    ).style.display="block";
-
-    document.getElementById(
-        "crosshair"
-    ).style.display="none";
-
-    // Hide sniper model while scoped
-    if(gunModel){
-        gunModel.visible=false;
-    }
-
-}  
-
-    else{
-
-    camera.fov=
-        weapon.normalFOV;
+    camera.fov=view.fov;
 
     camera.updateProjectionMatrix();
 
     document.getElementById(
         "scopeOverlay"
     ).style.display=
-        "none";
+        view.scopeOverlay?
+            "block":
+            "none";
 
     document.getElementById(
         "crosshair"
     ).style.display=
-        "block";
+        view.crosshair?
+            "block":
+            "none";
 
-    // Show gun model again
+    /*
+       Hide the weapon while the
+       scope overlay is showing.
+    */
+
     if(gunModel){
-        gunModel.visible=true;
-    }
 
-}
+        gunModel.visible=
+            view.gunModel;
+
+    }
 
     updateWeaponHUD();
 
@@ -3289,121 +2950,9 @@ function setupControls(){
 
             e.preventDefault();
 
-            /* =====================================================
-   ADS
-===================================================== */
+            toggleADS();
 
-function toggleADS(){
-
-    if(gameOver)return;
-
-    isADS=!isADS;
-
-    let weapon=
-        weapons[currentWeapon];
-
-
-    if(isADS){
-
-        camera.fov=
-            weapon.adsFOV;
-
-        camera.updateProjectionMatrix();
-
-
-        /*
-           SNIPER ADS
-        */
-
-        if(
-            currentWeapon==="SNIPER"
-        ){
-
-            document.getElementById(
-                "scopeOverlay"
-            ).style.display=
-                "block";
-
-            document.getElementById(
-                "crosshair"
-            ).style.display=
-                "none";
-
-
-            /*
-               Hide the physical sniper
-               scope so it doesn't appear
-               over the scope overlay.
-            */
-
-            if(gunModel){
-
-                let physicalScope=
-                    gunModel.getObjectByName(
-                        "sniperScope"
-                    );
-
-                if(physicalScope){
-
-                    physicalScope.visible=
-                        false;
-
-                }
-
-            }
-
-        }
-
-    }
-
-    else{
-
-        camera.fov=
-            weapon.normalFOV;
-
-        camera.updateProjectionMatrix();
-
-
-        document.getElementById(
-            "scopeOverlay"
-        ).style.display=
-            "none";
-
-        document.getElementById(
-            "crosshair"
-        ).style.display=
-            "block";
-
-
-        /*
-           Show physical sniper scope
-           again after leaving ADS.
-        */
-
-        if(
-            currentWeapon==="SNIPER"&&
-            gunModel
-        ){
-
-            let physicalScope=
-                gunModel.getObjectByName(
-                    "sniperScope"
-                );
-
-            if(physicalScope){
-
-                physicalScope.visible=
-                    true;
-
-            }
-
-        }
-
-    }
-
-    updateWeaponHUD();
-
-}
+        },
         {
             passive:false
         }
@@ -3575,35 +3124,30 @@ function shoot(){
     const now=
         performance.now();
 
-    if(
-        now-lastPlayerShot<
-        weapon.fireRate
-    ){
-
-        return;
-
-    }
-
     /*
-       SNIPER:
-       MUST BE SCOPED TO FIRE
+       SNIPER MUST BE SCOPED TO FIRE
        AND ALWAYS FIRES ONE SHOT.
     */
 
     if(
-        currentWeapon==="SNIPER"&&
-        !isADS
+        !GameCore.canFire(
+            weapon,
+            currentWeapon,
+            now,
+            lastPlayerShot,
+            isADS
+        )
     ){
 
-        return;
+        if(
+            weapon.ammo<=0&&
+            now-lastPlayerShot>=
+                weapon.fireRate
+        ){
 
-    }
+            reload();
 
-    if(
-        weapon.ammo<=0
-    ){
-
-        reload();
+        }
 
         return;
 
@@ -4204,35 +3748,16 @@ function removeProjectile(
 
 function reload(){
 
-    const weapon=
-        weapons[currentWeapon];
-
-    const needed=
-        weapon.magazineSize-
-        weapon.ammo;
-
-    if(
-        needed<=0||
-        weapon.reserve<=0
-    ){
-
-        return;
-
-    }
-
     const amount=
-        Math.min(
-            needed,
-            weapon.reserve
+        GameCore.reloadWeapon(
+            weapons[currentWeapon]
         );
 
-    weapon.ammo+=
-        amount;
+    if(amount>0){
 
-    weapon.reserve-=
-        amount;
+        updateWeaponHUD();
 
-    updateWeaponHUD();
+    }
 
 }
 
@@ -4473,13 +3998,10 @@ function takeDamage(
 
     if(gameOver)return;
 
-    health-=
-        damage;
-
     health=
-        Math.max(
-            0,
-            health
+        GameCore.applyDamage(
+            health,
+            damage
         );
 
     updateHUD();
