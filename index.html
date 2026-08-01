@@ -109,13 +109,33 @@ canvas {
     position: fixed;
     top: 50%;
     left: 50%;
+    width: 24px;
+    height: 24px;
     transform: translate(-50%, -50%);
-    color: white;
-    font-size: 30px;
-    font-weight: bold;
-    text-shadow: 2px 2px 5px black;
     pointer-events: none;
     z-index: 5;
+}
+
+#crosshair::before,
+#crosshair::after {
+    content: "";
+    position: absolute;
+    background: white;
+    box-shadow: 0 0 3px black;
+}
+
+#crosshair::before {
+    width: 24px;
+    height: 3px;
+    top: 10.5px;
+    left: 0;
+}
+
+#crosshair::after {
+    width: 3px;
+    height: 24px;
+    top: 0;
+    left: 10.5px;
 }
 
 /* =========================
