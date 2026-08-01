@@ -382,6 +382,13 @@ function randomAirdropPosition(
 
     }
 
+    console.warn(
+        "[FPS] No free airdrop position found "+
+        "after "+
+        tries+
+        " attempts; falling back to the map centre."
+    );
+
     return {
         x:0,
         z:0

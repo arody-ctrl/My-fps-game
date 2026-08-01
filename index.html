@@ -356,6 +356,33 @@ canvas{
     border-radius:8px;
     font-size:18px;
 }
+
+/* FATAL ERROR */
+#fatalError{
+    position:fixed;
+    inset:0;
+    z-index:1000;
+    display:none;
+    padding:20px;
+    box-sizing:border-box;
+    overflow:auto;
+    background:rgba(0,0,0,.92);
+    color:#ff6b6b;
+    font-family:monospace;
+    font-size:15px;
+}
+
+#fatalErrorTitle{
+    font-size:22px;
+    font-weight:bold;
+    margin-bottom:12px;
+}
+
+#fatalErrorDetails{
+    color:#ffd9d9;
+    white-space:pre-wrap;
+    word-break:break-word;
+}
 </style>
 </head>
 
@@ -474,11 +501,138 @@ canvas{
 
 </div>
 
+<div id="fatalError">
+    <div id="fatalErrorTitle">
+        SOMETHING WENT WRONG
+    </div>
+    <div id="fatalErrorDetails"></div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script src="src/game-core.js"></script>
 
 <script>
+
+/* =====================================================
+   ERROR REPORTING
+
+   Nothing in this game should fail invisibly:
+   every failure ends up in the console and on
+   screen, and the game loop stops instead of
+   leaving a frozen or black canvas.
+===================================================== */
+
+let fatalErrorReported=false;
+
+let animationFrame=null;
+
+function stopGameLoop(){
+
+    if(animationFrame===null)return;
+
+    cancelAnimationFrame(
+        animationFrame
+    );
+
+    animationFrame=null;
+
+}
+
+function describeError(error){
+
+    if(error instanceof Error){
+
+        return error.stack||
+            error.name+": "+error.message;
+
+    }
+
+    return String(error);
+
+}
+
+function reportFatalError(context,error){
+
+    console.error(
+        "[FPS] "+context,
+        error
+    );
+
+    if(fatalErrorReported)return;
+
+    fatalErrorReported=true;
+
+    stopGameLoop();
+
+    let overlay=
+        document.getElementById(
+            "fatalError"
+        );
+
+    let details=
+        document.getElementById(
+            "fatalErrorDetails"
+        );
+
+    if(!overlay||!details)return;
+
+    details.textContent=
+        context+
+        "\n\n"+
+        describeError(error);
+
+    overlay.style.display="block";
+
+}
+
+window.addEventListener(
+    "error",
+    function(event){
+
+        reportFatalError(
+            "Uncaught error",
+            event.error||
+            event.message
+        );
+
+    }
+);
+
+window.addEventListener(
+    "unhandledrejection",
+    function(event){
+
+        reportFatalError(
+            "Unhandled promise rejection",
+            event.reason
+        );
+
+    }
+);
+
+/*
+   Every HUD element is required: a missing id is
+   a bug, so fail loudly instead of throwing an
+   opaque "cannot set property of null".
+*/
+
+function getEl(id){
+
+    let element=
+        document.getElementById(id);
+
+    if(!element){
+
+        throw new Error(
+            "Missing DOM element #"+id
+        );
+
+    }
+
+    return element;
+
+}
 
 /* =====================================================
    CORE GAME
@@ -1363,9 +1517,7 @@ let airdropId=0;
 
 function showAirdropMessage(text){
 
-    let el=document.getElementById(
-        "airdropMessage"
-    );
+    let el=getEl("airdropMessage");
 
     el.textContent=text;
     el.style.opacity=1;
@@ -1383,9 +1535,7 @@ function showAirdropMessage(text){
 
 function showAirdropInfo(text){
 
-    let el=document.getElementById(
-        "airdropInfo"
-    );
+    let el=getEl("airdropInfo");
 
     el.textContent=text;
     el.style.opacity=1;
@@ -1394,9 +1544,7 @@ function showAirdropInfo(text){
 
 function hideAirdropInfo(){
 
-    document.getElementById(
-        "airdropInfo"
-    ).style.opacity=0;
+    getEl("airdropInfo").style.opacity=0;
 
 }
 
@@ -1775,9 +1923,7 @@ function collectAirdrop(drop){
 
 function updateAirdropHUD(){
 
-    document.getElementById(
-        "airdropCount"
-    ).textContent=
+    getEl("airdropCount").textContent=
         airdrops.filter(
             d=>
                 d &&
@@ -1790,7 +1936,87 @@ function updateAirdropHUD(){
    START
 ===================================================== */
 
+function createRenderer(){
+
+    /*
+       WebGLRenderer throws when the browser or
+       device cannot give us a WebGL context.
+    */
+
+    try{
+
+        return new THREE.WebGLRenderer({
+            antialias:true,
+            powerPreference:
+                "high-performance"
+        });
+
+    }
+
+    catch(error){
+
+        throw new Error(
+            "Could not create a WebGL context. "+
+            "Your browser or device may not "+
+            "support WebGL. ("+
+            describeError(error)+
+            ")"
+        );
+
+    }
+
+}
+
 function startGame(){
+
+    if(typeof THREE==="undefined"){
+
+        reportFatalError(
+            "three.js failed to load",
+            new Error(
+                "THREE is undefined. The three.js "+
+                "CDN script could not be loaded; "+
+                "check your network connection."
+            )
+        );
+
+        return;
+
+    }
+
+    if(typeof GameCore==="undefined"){
+
+        reportFatalError(
+            "src/game-core.js failed to load",
+            new Error(
+                "GameCore is undefined. Serve the "+
+                "page over HTTP from the repository "+
+                "root so src/game-core.js resolves."
+            )
+        );
+
+        return;
+
+    }
+
+    try{
+
+        buildWorld();
+
+    }
+
+    catch(error){
+
+        reportFatalError(
+            "Failed to start the game",
+            error
+        );
+
+    }
+
+}
+
+function buildWorld(){
 
     scene=new THREE.Scene();
 
@@ -1808,12 +2034,24 @@ function startGame(){
             1000
         );
 
-    renderer=
-        new THREE.WebGLRenderer({
-            antialias:true,
-            powerPreference:
-                "high-performance"
-        });
+    renderer=createRenderer();
+
+    renderer.domElement.addEventListener(
+        "webglcontextlost",
+        function(event){
+
+            event.preventDefault();
+
+            reportFatalError(
+                "WebGL context lost",
+                new Error(
+                    "The graphics context was lost. "+
+                    "Reload the page to continue."
+                )
+            );
+
+        }
+    );
 
     renderer.setPixelRatio(
         Math.min(
@@ -1875,7 +2113,22 @@ function startGame(){
 
     setTimeout(
         function(){
-            startWave();
+
+            try{
+
+                startWave();
+
+            }
+
+            catch(error){
+
+                reportFatalError(
+                    "Failed to start the first wave",
+                    error
+                );
+
+            }
+
         },
         1000
     );
@@ -2459,9 +2712,7 @@ function showScorePopup(
 ){
 
     let popup=
-        document.getElementById(
-            "scorePopup"
-        );
+        getEl("scorePopup");
 
     popup.textContent=text;
 
@@ -2495,8 +2746,17 @@ function switchWeapon(
     weaponName
 ){
 
-    if(!weapons[weaponName])
+    if(!weapons[weaponName]){
+
+        console.warn(
+            "[FPS] Ignoring switch to unknown "+
+            "weapon: "+
+            weaponName
+        );
+
         return;
+
+    }
 
     currentWeapon=
         weaponName;
@@ -2510,13 +2770,9 @@ function switchWeapon(
 
     camera.updateProjectionMatrix();
 
-    document.getElementById(
-        "scopeOverlay"
-    ).style.display="none";
+    getEl("scopeOverlay").style.display="none";
 
-    document.getElementById(
-        "crosshair"
-    ).style.display="block";
+    getEl("crosshair").style.display="block";
 
     createGunModel();
 
@@ -2549,19 +2805,13 @@ function updateWeaponHUD(){
     let weapon=
         weapons[currentWeapon];
 
-    document.getElementById(
-        "weaponName"
-    ).textContent=
+    getEl("weaponName").textContent=
         weapon.name;
 
-    document.getElementById(
-        "ammo"
-    ).textContent=
+    getEl("ammo").textContent=
         weapon.ammo;
 
-    document.getElementById(
-        "reserve"
-    ).textContent=
+    getEl("reserve").textContent=
         weapon.reserve;
 
     let upgradeCount=
@@ -2569,9 +2819,7 @@ function updateWeaponHUD(){
         weapon.upgrades.length:
         0;
 
-    document.getElementById(
-        "adsStatus"
-    ).textContent=
+    getEl("adsStatus").textContent=
         GameCore.adsStatusText(
             currentWeapon,
             isADS
@@ -2600,16 +2848,12 @@ function toggleADS(){
 
     camera.updateProjectionMatrix();
 
-    document.getElementById(
-        "scopeOverlay"
-    ).style.display=
+    getEl("scopeOverlay").style.display=
         view.scopeOverlay?
             "block":
             "none";
 
-    document.getElementById(
-        "crosshair"
-    ).style.display=
+    getEl("crosshair").style.display=
         view.crosshair?
             "block":
             "none";
@@ -2637,14 +2881,10 @@ function toggleADS(){
 function setupControls(){
 
     let joystick=
-        document.getElementById(
-            "joystick"
-        );
+        getEl("joystick");
 
     let stick=
-        document.getElementById(
-            "stick"
-        );
+        getEl("stick");
 
     joystick.addEventListener(
         "touchstart",
@@ -2897,9 +3137,7 @@ function setupControls(){
     /* FIRE */
 
     let fireButton=
-        document.getElementById(
-            "fire"
-        );
+        getEl("fire");
 
     fireButton.addEventListener(
         "touchstart",
@@ -2942,9 +3180,7 @@ function setupControls(){
 
     /* ADS */
 
-    document.getElementById(
-        "ads"
-    ).addEventListener(
+    getEl("ads").addEventListener(
         "touchstart",
         function(e){
 
@@ -2960,9 +3196,7 @@ function setupControls(){
 
     /* RELOAD */
 
-    document.getElementById(
-        "reload"
-    ).addEventListener(
+    getEl("reload").addEventListener(
         "touchstart",
         function(e){
 
@@ -3006,9 +3240,7 @@ function setupControls(){
 
     /* RESTART */
 
-    document.getElementById(
-        "restart"
-    ).addEventListener(
+    getEl("restart").addEventListener(
         "click",
         function(){
 
@@ -3641,6 +3873,37 @@ function createHitEffect(
 
     function animateHitEffect(){
 
+        try{
+
+            stepHitEffect();
+
+        }
+
+        catch(error){
+
+            /*
+               A broken hit effect must not take the
+               whole game down: clean it up, report
+               it, and keep playing.
+            */
+
+            console.error(
+                "[FPS] Hit effect failed",
+                error
+            );
+
+            scene.remove(effect);
+
+            geometry.dispose();
+
+            material.dispose();
+
+        }
+
+    }
+
+    function stepHitEffect(){
+
         if(!effect.parent)return;
 
         const elapsed=
@@ -4007,9 +4270,7 @@ function takeDamage(
     updateHUD();
 
     let flash=
-        document.getElementById(
-            "damageFlash"
-        );
+        getEl("damageFlash");
 
     flash.style.opacity=1;
 
@@ -4038,28 +4299,20 @@ function takeDamage(
 
 function updateHUD(){
 
-    document.getElementById(
-        "scoreDisplay"
-    ).textContent=
+    getEl("scoreDisplay").textContent=
         score;
 
-    document.getElementById(
-        "kills"
-    ).textContent=
+    getEl("kills").textContent=
         kills;
 
-    document.getElementById(
-        "enemyCount"
-    ).textContent=
+    getEl("enemyCount").textContent=
 
         enemies.filter(
             e=>
                 e.alive
         ).length;
 
-    document.getElementById(
-        "health"
-    ).style.width=
+    getEl("health").style.width=
         health+
         "%";
 
@@ -4073,9 +4326,7 @@ function updateHUD(){
 
 function updateWaveHUD(){
 
-    document.getElementById(
-        "wave"
-    ).textContent=
+    getEl("wave").textContent=
         currentWave;
 
 }
@@ -4089,9 +4340,7 @@ let hitMarkerTimer=null;
 function showHitMarker(){
 
     let marker=
-        document.getElementById(
-            "hitMarker"
-        );
+        getEl("hitMarker");
 
     marker.style.opacity=1;
 
@@ -4127,20 +4376,14 @@ function loseGame(){
 
     isFiring=false;
 
-    document.getElementById(
-        "messageText"
-    ).textContent=
+    getEl("messageText").textContent=
         "GAME OVER";
 
-    document.getElementById(
-        "finalScore"
-    ).textContent=
+    getEl("finalScore").textContent=
         "FINAL SCORE: "+
         score;
 
-    document.getElementById(
-        "message"
-    ).style.display=
+    getEl("message").style.display=
         "block";
 
 }
@@ -4150,6 +4393,8 @@ function loseGame(){
 ===================================================== */
 
 function resize(){
+
+    if(!camera||!renderer)return;
 
     camera.aspect=
         window.innerWidth/
@@ -4171,11 +4416,38 @@ function resize(){
 let lastTime=
     performance.now();
 
+/*
+   An exception thrown inside a requestAnimationFrame
+   callback kills the loop without any visible sign,
+   so the frame is wrapped and any failure is
+   reported instead of leaving a frozen screen.
+*/
+
 function animate(){
 
-    requestAnimationFrame(
-        animate
-    );
+    animationFrame=
+        requestAnimationFrame(
+            animate
+        );
+
+    try{
+
+        renderFrame();
+
+    }
+
+    catch(error){
+
+        reportFatalError(
+            "Game loop crashed",
+            error
+        );
+
+    }
+
+}
+
+function renderFrame(){
 
     let now=
         performance.now();
