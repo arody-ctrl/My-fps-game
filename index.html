@@ -531,7 +531,27 @@ let gunBobTime=0;
 function createGunModel(){
 
     if(gunModel){
-        gunModel.visible=true;
+
+        camera.remove(gunModel);
+
+        gunModel.traverse(
+            object=>{
+
+                if(object.geometry){
+
+                    object.geometry.dispose();
+
+                }
+
+                if(object.material){
+
+                    object.material.dispose();
+
+                }
+
+            }
+        );
+
     }
 
     gunModel=new THREE.Group();
