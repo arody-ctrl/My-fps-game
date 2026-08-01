@@ -468,6 +468,129 @@ let isFiring = false;
 let lastPlayerShot = 0;
 
 /* =====================================================
+   V6.4 SCORE SYSTEM
+===================================================== */
+
+let score = 0;
+
+const SCORE_VALUES = {
+
+    kill: 100,
+
+    headshot: 150,
+
+    wave: 500,
+
+    sniperKill: 200
+
+};
+
+/* =====================================================
+   LOW POLY WEAPON VIEW
+===================================================== */
+
+const weaponView =
+    document.getElementById(
+        "weaponView"
+    );
+
+function updateWeaponModel() {
+
+    if (!weaponView)
+        return;
+
+    weaponView.className =
+        "ar";
+
+    if (
+        currentWeapon ===
+        "SMG"
+    ) {
+
+        weaponView.className =
+            "smg";
+
+    }
+
+    if (
+        currentWeapon ===
+        "PISTOL"
+    ) {
+
+        weaponView.className =
+            "pistol";
+
+    }
+
+    if (
+        currentWeapon ===
+        "SNIPER"
+    ) {
+
+        weaponView.className =
+            "sniper";
+
+    }
+
+    if (isADS) {
+
+        weaponView.classList.add(
+            "ads"
+        );
+
+    }
+
+}
+
+/* =====================================================
+   SCORE
+===================================================== */
+
+function addScore(amount) {
+
+    score += amount;
+
+    updateScoreHUD();
+
+}
+
+function updateScoreHUD() {
+
+    let scoreElement =
+        document.getElementById(
+            "score"
+        );
+
+    if (scoreElement) {
+
+        scoreElement.textContent =
+            score.toLocaleString();
+
+    }
+
+}
+
+/* =====================================================
+   WEAPON RECOIL
+===================================================== */
+
+function weaponRecoil() {
+
+    if (!weaponView)
+        return;
+
+    weaponView.classList.remove(
+        "recoil"
+    );
+
+    void weaponView.offsetWidth;
+
+    weaponView.classList.add(
+        "recoil"
+    );
+
+}
+/* =====================================================
    WAVE SYSTEM
 ===================================================== */
 
