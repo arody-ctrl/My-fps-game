@@ -1348,6 +1348,25 @@ function killEnemy(enemy) {
 
     kills++;
 
+    /* SCORE */
+
+    let killScore =
+        SCORE_VALUES.kill;
+
+    if (
+        currentWeapon ===
+        "SNIPER"
+    ) {
+
+        killScore =
+            SCORE_VALUES.sniperKill;
+
+    }
+
+    addScore(
+        killScore
+    );
+
     updateHUD();
 
 }
