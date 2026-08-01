@@ -356,33 +356,6 @@ canvas{
     border-radius:8px;
     font-size:18px;
 }
-
-/* FATAL ERROR */
-#fatalError{
-    position:fixed;
-    inset:0;
-    z-index:1000;
-    display:none;
-    padding:20px;
-    box-sizing:border-box;
-    overflow:auto;
-    background:rgba(0,0,0,.92);
-    color:#ff6b6b;
-    font-family:monospace;
-    font-size:15px;
-}
-
-#fatalErrorTitle{
-    font-size:22px;
-    font-weight:bold;
-    margin-bottom:12px;
-}
-
-#fatalErrorDetails{
-    color:#ffd9d9;
-    white-space:pre-wrap;
-    word-break:break-word;
-}
 </style>
 </head>
 
@@ -501,136 +474,11 @@ canvas{
 
 </div>
 
-<div id="fatalError">
-    <div id="fatalErrorTitle">
-        SOMETHING WENT WRONG
-    </div>
-    <div id="fatalErrorDetails"></div>
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
+<script src="src/game-core.js"></script>
+
 <script>
-
-/* =====================================================
-   ERROR REPORTING
-
-   Nothing in this game should fail invisibly:
-   every failure ends up in the console and on
-   screen, and the game loop stops instead of
-   rendering a frozen or black canvas.
-===================================================== */
-
-let fatalErrorReported=false;
-
-let animationFrame=null;
-
-function stopGameLoop(){
-
-    if(animationFrame===null)return;
-
-    cancelAnimationFrame(
-        animationFrame
-    );
-
-    animationFrame=null;
-
-}
-
-function describeError(error){
-
-    if(error instanceof Error){
-
-        return error.stack||
-            error.name+": "+error.message;
-
-    }
-
-    return String(error);
-
-}
-
-function reportFatalError(context,error){
-
-    console.error(
-        "[FPS] "+context,
-        error
-    );
-
-    if(fatalErrorReported)return;
-
-    fatalErrorReported=true;
-
-    stopGameLoop();
-
-    let overlay=
-        document.getElementById(
-            "fatalError"
-        );
-
-    let details=
-        document.getElementById(
-            "fatalErrorDetails"
-        );
-
-    if(!overlay||!details)return;
-
-    details.textContent=
-        context+
-        "\n\n"+
-        describeError(error);
-
-    overlay.style.display="block";
-
-}
-
-window.addEventListener(
-    "error",
-    function(event){
-
-        reportFatalError(
-            "Uncaught error",
-            event.error||
-            event.message
-        );
-
-    }
-);
-
-window.addEventListener(
-    "unhandledrejection",
-    function(event){
-
-        reportFatalError(
-            "Unhandled promise rejection",
-            event.reason
-        );
-
-    }
-);
-
-/*
-   Every HUD element is required: a missing id is
-   a bug, so fail loudly instead of throwing an
-   opaque "cannot set property of null".
-*/
-
-function getEl(id){
-
-    let element=
-        document.getElementById(id);
-
-    if(!element){
-
-        throw new Error(
-            "Missing DOM element #"+id
-        );
-
-    }
-
-    return element;
-
-}
 
 /* =====================================================
    CORE GAME
@@ -656,69 +504,7 @@ let gameOver = false;
    WEAPONS
 ===================================================== */
 
-const weapons = {
-
-    AR:{
-        name:"ASSAULT RIFLE",
-        magazineSize:30,
-        ammo:30,
-        reserve:120,
-        damage:25,
-        fireRate:120,
-        projectileSpeed:110,
-        projectileLife:5,
-        spread:.008,
-        adsFOV:55,
-        normalFOV:75,
-        automatic:true
-    },
-
-    SMG:{
-        name:"SMG",
-        magazineSize:35,
-        ammo:35,
-        reserve:175,
-        damage:18,
-        fireRate:70,
-        projectileSpeed:95,
-        projectileLife:4,
-        spread:.025,
-        adsFOV:60,
-        normalFOV:75,
-        automatic:true
-    },
-
-    PISTOL:{
-        name:"PISTOL",
-        magazineSize:12,
-        ammo:12,
-        reserve:72,
-        damage:40,
-        fireRate:250,
-        projectileSpeed:100,
-        projectileLife:5,
-        spread:.01,
-        adsFOV:58,
-        normalFOV:75,
-        automatic:false
-    },
-
-    SNIPER:{
-        name:"SNIPER",
-        magazineSize:5,
-        ammo:5,
-        reserve:30,
-        damage:200,
-        fireRate:1100,
-        projectileSpeed:300,
-        projectileLife:10,
-        spread:0,
-        adsFOV:18,
-        normalFOV:75,
-        automatic:false
-    }
-
-};
+const weapons=GameCore.createWeapons();
 
 let currentWeapon="AR";
 let isADS=false;
@@ -730,75 +516,9 @@ let lastPlayerShot=0;
    MAX 4 UPGRADES PER WEAPON
 ===================================================== */
 
-const MAX_UPGRADES=4;
+const MAX_UPGRADES=GameCore.MAX_UPGRADES;
 
-const upgradeTypes=[
-
-    {
-        name:"DAMAGE +20%",
-        type:"damage",
-        apply:function(w){
-            w.damage=Math.round(w.damage*1.2);
-        }
-    },
-
-    {
-        name:"FIRE RATE +15%",
-        type:"fireRate",
-        apply:function(w){
-            w.fireRate=Math.max(
-                35,
-                Math.round(w.fireRate*.85)
-            );
-        }
-    },
-
-    {
-        name:"MAGAZINE +25%",
-        type:"magazine",
-        apply:function(w){
-
-            let oldSize=w.magazineSize;
-
-            w.magazineSize=Math.ceil(
-                w.magazineSize*1.25
-            );
-
-            w.ammo+=
-                w.magazineSize-oldSize;
-        }
-    },
-
-    {
-        name:"RESERVE AMMO +50%",
-        type:"reserve",
-        apply:function(w){
-
-            w.reserve+=Math.ceil(
-                w.reserve*.5
-            );
-        }
-    },
-
-    {
-        name:"PROJECTILE SPEED +25%",
-        type:"speed",
-        apply:function(w){
-
-            w.projectileSpeed*=1.25;
-        }
-    },
-
-    {
-        name:"ACCURACY +30%",
-        type:"accuracy",
-        apply:function(w){
-
-            w.spread*=.7;
-        }
-    }
-
-];
+const upgradeTypes=GameCore.upgradeTypes;
 
 /* =====================================================
    LOW POLY GUN
@@ -1643,7 +1363,9 @@ let airdropId=0;
 
 function showAirdropMessage(text){
 
-    let el=getEl("airdropMessage");
+    let el=document.getElementById(
+        "airdropMessage"
+    );
 
     el.textContent=text;
     el.style.opacity=1;
@@ -1661,7 +1383,9 @@ function showAirdropMessage(text){
 
 function showAirdropInfo(text){
 
-    let el=getEl("airdropInfo");
+    let el=document.getElementById(
+        "airdropInfo"
+    );
 
     el.textContent=text;
     el.style.opacity=1;
@@ -1670,49 +1394,17 @@ function showAirdropInfo(text){
 
 function hideAirdropInfo(){
 
-    getEl("airdropInfo").style.opacity=0;
+    document.getElementById(
+        "airdropInfo"
+    ).style.opacity=0;
 
 }
 
 function randomAirdropPosition(){
 
-    for(let i=0;i<40;i++){
-
-        let x=
-            -100+
-            Math.random()*200;
-
-        let z=
-            -100+
-            Math.random()*200;
-
-        if(
-            !circleIntersectsWall(
-                x,
-                z,
-                2
-            )
-        ){
-
-            return {
-                x:x,
-                z:z
-            };
-
-        }
-
-    }
-
-    console.warn(
-        "[FPS] No free airdrop position found "+
-        "after 40 attempts; falling back to the "+
-        "map centre."
+    return GameCore.randomAirdropPosition(
+        walls
     );
-
-    return {
-        x:0,
-        z:0
-    };
 
 }
 
@@ -1993,28 +1685,16 @@ function collectAirdrop(drop){
         );
 
     health=
-        Math.min(
-            100,
-            health+healthAmount
+        GameCore.airdropHealth(
+            health,
+            healthAmount
         );
 
     /* AMMO */
 
-    for(
-        let key in weapons
-    ){
-
-        let weapon=
-            weapons[key];
-
-        weapon.reserve+=
-            Math.ceil(
-                weapon.magazineSize*
-                (.5+
-                Math.random()*.5)
-            );
-
-    }
+    GameCore.restockReserves(
+        weapons
+    );
 
     /* RANDOM UPGRADES */
 
@@ -2024,66 +1704,13 @@ function collectAirdrop(drop){
             Math.random()*4
         );
 
-    let available=
-        upgradeTypes.slice();
+    let upgradesReceived=
+        GameCore.applyUpgrades(
+            weapons[currentWeapon],
+            upgradeCount
+        );
 
-    let upgradesReceived=[];
-
-    for(
-        let i=0;
-        i<upgradeCount;
-        i++
-    ){
-
-        if(
-            available.length===0
-        )break;
-
-        let index=
-            Math.floor(
-                Math.random()*
-                available.length
-            );
-
-        let upgrade=
-            available.splice(
-                index,
-                1
-            )[0];
-
-        let weapon=
-            weapons[currentWeapon];
-
-        if(
-            !weapon.upgrades
-        ){
-
-            weapon.upgrades=[];
-
-        }
-
-        if(
-            weapon.upgrades.length<
-            MAX_UPGRADES
-        ){
-
-            upgrade.apply(
-                weapon
-            );
-
-            weapon.upgrades.push(
-                upgrade.type
-            );
-
-            upgradesReceived.push(
-                upgrade.name
-            );
-
-        }
-
-    }
-
-    score+=500;
+    score+=GameCore.AIRDROP_SCORE;
 
     showScorePopup(
         "+500 AIRDROP"
@@ -2148,7 +1775,9 @@ function collectAirdrop(drop){
 
 function updateAirdropHUD(){
 
-    getEl("airdropCount").textContent=
+    document.getElementById(
+        "airdropCount"
+    ).textContent=
         airdrops.filter(
             d=>
                 d &&
@@ -2161,72 +1790,7 @@ function updateAirdropHUD(){
    START
 ===================================================== */
 
-function createRenderer(){
-
-    /*
-       WebGLRenderer throws when the browser or
-       device cannot give us a WebGL context.
-    */
-
-    try{
-
-        return new THREE.WebGLRenderer({
-            antialias:true,
-            powerPreference:
-                "high-performance"
-        });
-
-    }
-
-    catch(error){
-
-        throw new Error(
-            "Could not create a WebGL context. "+
-            "Your browser or device may not "+
-            "support WebGL. ("+
-            describeError(error)+
-            ")"
-        );
-
-    }
-
-}
-
 function startGame(){
-
-    if(typeof THREE==="undefined"){
-
-        reportFatalError(
-            "three.js failed to load",
-            new Error(
-                "THREE is undefined. The three.js "+
-                "CDN script could not be loaded; "+
-                "check your network connection."
-            )
-        );
-
-        return;
-
-    }
-
-    try{
-
-        buildWorld();
-
-    }
-
-    catch(error){
-
-        reportFatalError(
-            "Failed to start the game",
-            error
-        );
-
-    }
-
-}
-
-function buildWorld(){
 
     scene=new THREE.Scene();
 
@@ -2244,24 +1808,12 @@ function buildWorld(){
             1000
         );
 
-    renderer=createRenderer();
-
-    renderer.domElement.addEventListener(
-        "webglcontextlost",
-        function(event){
-
-            event.preventDefault();
-
-            reportFatalError(
-                "WebGL context lost",
-                new Error(
-                    "The graphics context was lost. "+
-                    "Reload the page to continue."
-                )
-            );
-
-        }
-    );
+    renderer=
+        new THREE.WebGLRenderer({
+            antialias:true,
+            powerPreference:
+                "high-performance"
+        });
 
     renderer.setPixelRatio(
         Math.min(
@@ -2323,22 +1875,7 @@ function buildWorld(){
 
     setTimeout(
         function(){
-
-            try{
-
-                startWave();
-
-            }
-
-            catch(error){
-
-                reportFatalError(
-                    "Failed to start the first wave",
-                    error
-                );
-
-            }
-
+            startWave();
         },
         1000
     );
@@ -2490,59 +2027,12 @@ function circleIntersectsWall(
     radius
 ){
 
-    for(
-        let wall of walls
-    ){
-
-        let halfWidth=
-            wall.userData.halfWidth;
-
-        let halfDepth=
-            wall.userData.halfDepth;
-
-        let closestX=
-            Math.max(
-                wall.position.x-
-                    halfWidth,
-                Math.min(
-                    x,
-                    wall.position.x+
-                        halfWidth
-                )
-            );
-
-        let closestZ=
-            Math.max(
-                wall.position.z-
-                    halfDepth,
-                Math.min(
-                    z,
-                    wall.position.z+
-                        halfDepth
-                )
-            );
-
-        let dx=
-            x-
-            closestX;
-
-        let dz=
-            z-
-            closestZ;
-
-        if(
-            dx*dx+
-            dz*dz<
-            radius*radius
-        ){
-
-            return true;
-
-        }
-
-    }
-
-    return false;
+    return GameCore.circleIntersectsWall(
+        walls,
+        x,
+        z,
+        radius
+    );
 
 }
 
@@ -2552,45 +2042,12 @@ function moveWithCollision(
     radius
 ){
 
-    let newX=
-        object.position.x+
-        movement.x;
-
-    let newZ=
-        object.position.z;
-
-    if(
-        !circleIntersectsWall(
-            newX,
-            newZ,
-            radius
-        )
-    ){
-
-        object.position.x=
-            newX;
-
-    }
-
-    newX=
-        object.position.x;
-
-    newZ=
-        object.position.z+
-        movement.z;
-
-    if(
-        !circleIntersectsWall(
-            newX,
-            newZ,
-            radius
-        )
-    ){
-
-        object.position.z=
-            newZ;
-
-    }
+    GameCore.moveWithCollision(
+        walls,
+        object.position,
+        movement,
+        radius
+    );
 
 }
 
@@ -2611,8 +2068,9 @@ function startWave(){
     waveInProgress=true;
 
     waveEnemiesRemaining=
-        5+
-        (currentWave-1)*2;
+        GameCore.waveEnemyCount(
+            currentWave
+        );
 
     waveSpawnTimer=0;
 
@@ -2677,7 +2135,9 @@ function updateWaveSystem(delta){
         waveInProgress=false;
 
         let waveBonus=
-            currentWave*250;
+            GameCore.waveBonus(
+                currentWave
+            );
 
         score+=waveBonus;
 
@@ -2971,28 +2431,13 @@ function killEnemy(
 
     kills++;
 
-    let points=100;
-
-    if(
-        currentWeapon==="SNIPER"
-    ){
-
-        points=250;
-
-    }
-
-    let distance=
-        player.position.distanceTo(
-            enemy.position
+    let points=
+        GameCore.killScore(
+            currentWeapon,
+            player.position.distanceTo(
+                enemy.position
+            )
         );
-
-    if(
-        distance>75
-    ){
-
-        points+=100;
-
-    }
 
     score+=points;
 
@@ -3014,7 +2459,9 @@ function showScorePopup(
 ){
 
     let popup=
-        getEl("scorePopup");
+        document.getElementById(
+            "scorePopup"
+        );
 
     popup.textContent=text;
 
@@ -3048,17 +2495,8 @@ function switchWeapon(
     weaponName
 ){
 
-    if(!weapons[weaponName]){
-
-        console.warn(
-            "[FPS] Ignoring switch to unknown "+
-            "weapon: "+
-            weaponName
-        );
-
+    if(!weapons[weaponName])
         return;
-
-    }
 
     currentWeapon=
         weaponName;
@@ -3072,9 +2510,13 @@ function switchWeapon(
 
     camera.updateProjectionMatrix();
 
-    getEl("scopeOverlay").style.display="none";
+    document.getElementById(
+        "scopeOverlay"
+    ).style.display="none";
 
-    getEl("crosshair").style.display="block";
+    document.getElementById(
+        "crosshair"
+    ).style.display="block";
 
     createGunModel();
 
@@ -3107,13 +2549,19 @@ function updateWeaponHUD(){
     let weapon=
         weapons[currentWeapon];
 
-    getEl("weaponName").textContent=
+    document.getElementById(
+        "weaponName"
+    ).textContent=
         weapon.name;
 
-    getEl("ammo").textContent=
+    document.getElementById(
+        "ammo"
+    ).textContent=
         weapon.ammo;
 
-    getEl("reserve").textContent=
+    document.getElementById(
+        "reserve"
+    ).textContent=
         weapon.reserve;
 
     let upgradeCount=
@@ -3121,25 +2569,13 @@ function updateWeaponHUD(){
         weapon.upgrades.length:
         0;
 
-    getEl("adsStatus").textContent=
-
-        isADS
-
-        ?
-
-        currentWeapon==="SNIPER"
-
-        ?
-
-        "SCOPED • 1 SHOT"
-
-        :
-
-        "IRON SIGHTS / ADS"
-
-        :
-
-        "HIP FIRE";
+    document.getElementById(
+        "adsStatus"
+    ).textContent=
+        GameCore.adsStatusText(
+            currentWeapon,
+            isADS
+        );
 
 }
 
@@ -3153,87 +2589,40 @@ function toggleADS(){
 
     isADS=!isADS;
 
-    let weapon=
-        weapons[currentWeapon];
+    let view=
+        GameCore.adsView(
+            weapons[currentWeapon],
+            currentWeapon,
+            isADS
+        );
 
-    if(isADS){
+    camera.fov=view.fov;
 
-        camera.fov=
-            weapon.adsFOV;
+    camera.updateProjectionMatrix();
 
-        camera.updateProjectionMatrix();
-
-        /*
-           SNIPER ADS
-        */
-
-        if(currentWeapon==="SNIPER"){
-
-            getEl("scopeOverlay").style.display=
-                "block";
-
-            getEl("crosshair").style.display=
-                "none";
-
-            /*
-               Hide the physical sniper scope so it
-               doesn't appear over the scope overlay.
-            */
-
-            if(gunModel){
-
-                let physicalScope=
-                    gunModel.getObjectByName(
-                        "sniperScope"
-                    );
-
-                if(physicalScope){
-
-                    physicalScope.visible=false;
-
-                }
-
-            }
-
-        }
-
-    }
-
-    else{
-
-        camera.fov=
-            weapon.normalFOV;
-
-        camera.updateProjectionMatrix();
-
-        getEl("scopeOverlay").style.display=
+    document.getElementById(
+        "scopeOverlay"
+    ).style.display=
+        view.scopeOverlay?
+            "block":
             "none";
 
-        getEl("crosshair").style.display=
-            "block";
+    document.getElementById(
+        "crosshair"
+    ).style.display=
+        view.crosshair?
+            "block":
+            "none";
 
-        /*
-           Show physical sniper scope again
-           after leaving ADS.
-        */
+    /*
+       Hide the weapon while the
+       scope overlay is showing.
+    */
 
-        if(
-            currentWeapon==="SNIPER"&&
-            gunModel
-        ){
+    if(gunModel){
 
-            let physicalScope=
-                gunModel.getObjectByName(
-                    "sniperScope"
-                );
-
-            if(physicalScope){
-
-                physicalScope.visible=true;
-
-            }
-
-        }
+        gunModel.visible=
+            view.gunModel;
 
     }
 
@@ -3248,10 +2637,14 @@ function toggleADS(){
 function setupControls(){
 
     let joystick=
-        getEl("joystick");
+        document.getElementById(
+            "joystick"
+        );
 
     let stick=
-        getEl("stick");
+        document.getElementById(
+            "stick"
+        );
 
     joystick.addEventListener(
         "touchstart",
@@ -3504,7 +2897,9 @@ function setupControls(){
     /* FIRE */
 
     let fireButton=
-        getEl("fire");
+        document.getElementById(
+            "fire"
+        );
 
     fireButton.addEventListener(
         "touchstart",
@@ -3547,7 +2942,9 @@ function setupControls(){
 
     /* ADS */
 
-    getEl("ads").addEventListener(
+    document.getElementById(
+        "ads"
+    ).addEventListener(
         "touchstart",
         function(e){
 
@@ -3563,7 +2960,9 @@ function setupControls(){
 
     /* RELOAD */
 
-    getEl("reload").addEventListener(
+    document.getElementById(
+        "reload"
+    ).addEventListener(
         "touchstart",
         function(e){
 
@@ -3607,7 +3006,9 @@ function setupControls(){
 
     /* RESTART */
 
-    getEl("restart").addEventListener(
+    document.getElementById(
+        "restart"
+    ).addEventListener(
         "click",
         function(){
 
@@ -3723,35 +3124,30 @@ function shoot(){
     const now=
         performance.now();
 
-    if(
-        now-lastPlayerShot<
-        weapon.fireRate
-    ){
-
-        return;
-
-    }
-
     /*
-       SNIPER:
-       MUST BE SCOPED TO FIRE
+       SNIPER MUST BE SCOPED TO FIRE
        AND ALWAYS FIRES ONE SHOT.
     */
 
     if(
-        currentWeapon==="SNIPER"&&
-        !isADS
+        !GameCore.canFire(
+            weapon,
+            currentWeapon,
+            now,
+            lastPlayerShot,
+            isADS
+        )
     ){
 
-        return;
+        if(
+            weapon.ammo<=0&&
+            now-lastPlayerShot>=
+                weapon.fireRate
+        ){
 
-    }
+            reload();
 
-    if(
-        weapon.ammo<=0
-    ){
-
-        reload();
+        }
 
         return;
 
@@ -4245,37 +3641,6 @@ function createHitEffect(
 
     function animateHitEffect(){
 
-        try{
-
-            stepHitEffect();
-
-        }
-
-        catch(error){
-
-            /*
-               A broken hit effect must not take the
-               whole game down: clean it up, report
-               it, and keep playing.
-            */
-
-            console.error(
-                "[FPS] Hit effect failed",
-                error
-            );
-
-            scene.remove(effect);
-
-            geometry.dispose();
-
-            material.dispose();
-
-        }
-
-    }
-
-    function stepHitEffect(){
-
         if(!effect.parent)return;
 
         const elapsed=
@@ -4383,35 +3748,16 @@ function removeProjectile(
 
 function reload(){
 
-    const weapon=
-        weapons[currentWeapon];
-
-    const needed=
-        weapon.magazineSize-
-        weapon.ammo;
-
-    if(
-        needed<=0||
-        weapon.reserve<=0
-    ){
-
-        return;
-
-    }
-
     const amount=
-        Math.min(
-            needed,
-            weapon.reserve
+        GameCore.reloadWeapon(
+            weapons[currentWeapon]
         );
 
-    weapon.ammo+=
-        amount;
+    if(amount>0){
 
-    weapon.reserve-=
-        amount;
+        updateWeaponHUD();
 
-    updateWeaponHUD();
+    }
 
 }
 
@@ -4652,19 +3998,18 @@ function takeDamage(
 
     if(gameOver)return;
 
-    health-=
-        damage;
-
     health=
-        Math.max(
-            0,
-            health
+        GameCore.applyDamage(
+            health,
+            damage
         );
 
     updateHUD();
 
     let flash=
-        getEl("damageFlash");
+        document.getElementById(
+            "damageFlash"
+        );
 
     flash.style.opacity=1;
 
@@ -4693,20 +4038,28 @@ function takeDamage(
 
 function updateHUD(){
 
-    getEl("scoreDisplay").textContent=
+    document.getElementById(
+        "scoreDisplay"
+    ).textContent=
         score;
 
-    getEl("kills").textContent=
+    document.getElementById(
+        "kills"
+    ).textContent=
         kills;
 
-    getEl("enemyCount").textContent=
+    document.getElementById(
+        "enemyCount"
+    ).textContent=
 
         enemies.filter(
             e=>
                 e.alive
         ).length;
 
-    getEl("health").style.width=
+    document.getElementById(
+        "health"
+    ).style.width=
         health+
         "%";
 
@@ -4720,7 +4073,9 @@ function updateHUD(){
 
 function updateWaveHUD(){
 
-    getEl("wave").textContent=
+    document.getElementById(
+        "wave"
+    ).textContent=
         currentWave;
 
 }
@@ -4734,7 +4089,9 @@ let hitMarkerTimer=null;
 function showHitMarker(){
 
     let marker=
-        getEl("hitMarker");
+        document.getElementById(
+            "hitMarker"
+        );
 
     marker.style.opacity=1;
 
@@ -4770,14 +4127,20 @@ function loseGame(){
 
     isFiring=false;
 
-    getEl("messageText").textContent=
+    document.getElementById(
+        "messageText"
+    ).textContent=
         "GAME OVER";
 
-    getEl("finalScore").textContent=
+    document.getElementById(
+        "finalScore"
+    ).textContent=
         "FINAL SCORE: "+
         score;
 
-    getEl("message").style.display=
+    document.getElementById(
+        "message"
+    ).style.display=
         "block";
 
 }
@@ -4787,8 +4150,6 @@ function loseGame(){
 ===================================================== */
 
 function resize(){
-
-    if(!camera||!renderer)return;
 
     camera.aspect=
         window.innerWidth/
@@ -4810,38 +4171,11 @@ function resize(){
 let lastTime=
     performance.now();
 
-/*
-   An exception thrown inside a requestAnimationFrame
-   callback kills the loop without any visible sign,
-   so the frame is wrapped and any failure is
-   reported instead of leaving a frozen screen.
-*/
-
 function animate(){
 
-    animationFrame=
-        requestAnimationFrame(
-            animate
-        );
-
-    try{
-
-        renderFrame();
-
-    }
-
-    catch(error){
-
-        reportFatalError(
-            "Game loop crashed",
-            error
-        );
-
-    }
-
-}
-
-function renderFrame(){
+    requestAnimationFrame(
+        animate
+    );
 
     let now=
         performance.now();
