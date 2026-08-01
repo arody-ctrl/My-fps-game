@@ -2322,7 +2322,11 @@ function movePlayer(delta) {
    SHOOTING
 ===================================================== */
 
-    function shoot() {
+    /* =====================================================
+   SHOOTING + PROJECTILE + HIT DETECTION REBUILD
+===================================================== */
+
+function shoot() {
 
     if (gameOver)
         return;
@@ -2331,12 +2335,15 @@ function movePlayer(delta) {
 
     let now = performance.now();
 
+    /* FIRE RATE */
     if (
         now - lastPlayerShot <
         weapon.fireRate
-    )
+    ) {
         return;
+    }
 
+    /* NO AMMO */
     if (weapon.ammo <= 0) {
 
         reload();
@@ -2354,41 +2361,80 @@ function movePlayer(delta) {
     updateWeaponHUD();
 
 
-    /* =========================================
-       AIM THROUGH EXACT CENTER OF SCREEN
-    ========================================= */
+    /* =================================================
+       1. GET EXACT CENTER OF SCREEN
+    ================================================= */
+
+    let screenCenter =
+        new THREE.Vector2(
+            0,
+            0
+        );
+
+
+    /* =================================================
+       2. RAYCAST FROM CAMERA THROUGH CROSSHAIR
+       
+       THREE.JS NDC:
+       X = 0
+       Y = 0
+
+       This is the exact center of the screen.
+    ================================================= */
 
     let raycaster =
         new THREE.Raycaster();
-
-    let screenCenter =
-        new THREE.Vector2(0, 0);
 
     raycaster.setFromCamera(
         screenCenter,
         camera
     );
 
+
+    /* =================================================
+       3. GET CAMERA WORLD POSITION
+    ================================================= */
+
+    let start =
+        new THREE.Vector3();
+
+    camera.getWorldPosition(
+        start
+    );
+
+
+    /* =================================================
+       4. GET AIM DIRECTION
+    ================================================= */
+
     let direction =
         raycaster.ray.direction.clone();
 
 
-    /* =========================================
-       WEAPON SPREAD
-    ========================================= */
+    /* =================================================
+       5. APPLY WEAPON SPREAD
+    ================================================= */
 
-    if (weapon.spread > 0) {
+    if (
+        weapon.spread > 0
+    ) {
 
         direction.x +=
-            (Math.random() - 0.5) *
+            (
+                Math.random() - 0.5
+            ) *
             weapon.spread;
 
         direction.y +=
-            (Math.random() - 0.5) *
+            (
+                Math.random() - 0.5
+            ) *
             weapon.spread;
 
         direction.z +=
-            (Math.random() - 0.5) *
+            (
+                Math.random() - 0.5
+            ) *
             weapon.spread;
 
         direction.normalize();
@@ -2396,40 +2442,781 @@ function movePlayer(delta) {
     }
 
 
-    /* =========================================
-       BULLET STARTS AT CAMERA
-    ========================================= */
-
-    let start =
-        camera.getWorldPosition(
-            new THREE.Vector3()
-        );
-
-
-    /* =========================================
-       CREATE BULLET
-    ========================================= */
+    /* =================================================
+       6. CREATE VISIBLE PROJECTILE
+    ================================================= */
 
     createProjectile(
 
         start,
+
         direction,
+
         true,
+
         weapon.damage,
+
         weapon.projectileSpeed,
+
         weapon.projectileLife
 
     );
 
 }
-    
-    
-function removeProjectile(index) {
+
+
+/* =====================================================
+   CREATE PROJECTILE
+===================================================== */
+
+function createProjectile(
+    start,
+    direction,
+    friendly,
+    damage,
+    speed,
+    life
+) {
+
+    /* =================================================
+       VISIBLE BULLET
+    ================================================= */
+
+    let bulletGeometry =
+        new THREE.SphereGeometry(
+            friendly ? 0.12 : 0.16,
+            8,
+            8
+        );
+
+    let bulletMaterial =
+        new THREE.MeshBasicMaterial({
+
+            color:
+                friendly
+                    ? 0xffff00
+                    : 0xff0000
+
+        });
+
+    let bullet =
+        new THREE.Mesh(
+            bulletGeometry,
+            bulletMaterial
+        );
+
+
+    /* =================================================
+       BULLET POSITION
+    ================================================= */
+
+    bullet.position.copy(
+        start
+    );
+
+
+    /* =================================================
+       ADD BULLET TO SCENE
+    ================================================= */
+
+    scene.add(
+        bullet
+    );
+
+
+    /* =================================================
+       PROJECTILE DATA
+    ================================================= */
+
+    bullet.userData = {
+
+        direction:
+            direction.clone().normalize(),
+
+        speed:
+            speed,
+
+        damage:
+            damage,
+
+        friendly:
+            friendly,
+
+        life:
+            life,
+
+        age:
+            0,
+
+        previousPosition:
+            start.clone()
+
+    };
+
+
+    /* =================================================
+       ADD TO PROJECTILE ARRAY
+    ================================================= */
+
+    projectiles.push(
+        bullet
+    );
+
+}
+
+
+/* =====================================================
+   UPDATE ALL PROJECTILES
+===================================================== */
+
+function updateProjectiles(delta) {
+
+    if (
+        projectiles.length === 0
+    ) {
+        return;
+    }
+
+
+    /* =================================================
+       LOOP BACKWARD
+       Allows safe removal
+    ================================================= */
+
+    for (
+        let i =
+            projectiles.length - 1;
+
+        i >= 0;
+
+        i--
+    ) {
+
+        let projectile =
+            projectiles[i];
+
+        if (!projectile) {
+
+            projectiles.splice(
+                i,
+                1
+            );
+
+            continue;
+
+        }
+
+
+        let data =
+            projectile.userData;
+
+
+        /* =================================================
+           SAVE OLD POSITION
+        ================================================= */
+
+        let oldPosition =
+            projectile.position.clone();
+
+
+        data.previousPosition =
+            oldPosition.clone();
+
+
+        /* =================================================
+           MOVE BULLET
+        ================================================= */
+
+        let movement =
+            data.direction
+                .clone()
+                .multiplyScalar(
+                    data.speed *
+                    delta
+                );
+
+
+        projectile.position.add(
+            movement
+        );
+
+
+        /* =================================================
+           INCREASE BULLET AGE
+        ================================================= */
+
+        data.age +=
+            delta;
+
+
+        /* =================================================
+           REMOVE OLD BULLETS
+        ================================================= */
+
+        if (
+            data.age >=
+            data.life
+        ) {
+
+            removeProjectile(
+                i
+            );
+
+            continue;
+
+        }
+
+
+        /* =================================================
+           BULLET TRAVEL SEGMENT
+           
+           We check from the old position
+           to the new position.
+
+           This prevents fast bullets
+           from passing through enemies.
+        ================================================= */
+
+        let travelDirection =
+            projectile.position
+                .clone()
+                .sub(
+                    oldPosition
+                );
+
+        let travelDistance =
+            travelDirection.length();
+
+
+        if (
+            travelDistance <= 0
+        ) {
+
+            continue;
+
+        }
+
+
+        travelDirection.normalize();
+
+
+        /* =================================================
+           RAYCAST BULLET PATH
+        ================================================= */
+
+        let bulletRay =
+            new THREE.Raycaster(
+                oldPosition,
+                travelDirection,
+                0,
+                travelDistance
+            );
+
+
+        /* =================================================
+           CHECK WALL COLLISION
+        ================================================= */
+
+        let wallHits =
+            bulletRay.intersectObjects(
+                walls,
+                false
+            );
+
+
+        /* =================================================
+           IF BULLET HITS WALL
+        ================================================= */
+
+        if (
+            wallHits.length > 0
+        ) {
+
+            removeProjectile(
+                i
+            );
+
+            continue;
+
+        }
+
+
+        /* =================================================
+           PLAYER BULLET
+           CHECK ENEMIES
+        ================================================= */
+
+        if (
+            data.friendly
+        ) {
+
+            let hitEnemy =
+                checkBulletEnemyHit(
+                    bulletRay,
+                    data.damage
+                );
+
+
+            if (
+                hitEnemy
+            ) {
+
+                removeProjectile(
+                    i
+                );
+
+                continue;
+
+            }
+
+        }
+
+
+        /* =================================================
+           ENEMY BULLET
+           CHECK PLAYER
+        ================================================= */
+
+        else {
+
+            if (
+                checkBulletPlayerHit(
+                    bulletRay
+                )
+            ) {
+
+                removeProjectile(
+                    i
+                );
+
+                continue;
+
+            }
+
+        }
+
+    }
+
+}
+
+
+/* =====================================================
+   CHECK BULLET → ENEMY HIT
+===================================================== */
+
+function checkBulletEnemyHit(
+    bulletRay,
+    damage
+) {
+
+    for (
+        let i = 0;
+
+        i < enemies.length;
+
+        i++
+    ) {
+
+        let enemy =
+            enemies[i];
+
+
+        /* =================================================
+           IGNORE DEAD ENEMIES
+        ================================================= */
+
+        if (
+            !enemy.alive
+        ) {
+
+            continue;
+
+        }
+
+
+        /* =================================================
+           GET ALL ENEMY MESHES
+        ================================================= */
+
+        let enemyMeshes = [];
+
+
+        enemy.traverse(
+            function(object) {
+
+                if (
+                    object.isMesh
+                ) {
+
+                    enemyMeshes.push(
+                        object
+                    );
+
+                }
+
+            }
+        );
+
+
+        /* =================================================
+           TEST BULLET RAY AGAINST ENEMY
+        ================================================= */
+
+        let hits =
+            bulletRay.intersectObjects(
+                enemyMeshes,
+                false
+            );
+
+
+        /* =================================================
+           ENEMY HIT
+        ================================================= */
+
+        if (
+            hits.length > 0
+        ) {
+
+            let hit =
+                hits[0];
+
+
+            /* =============================================
+               HIT MARKER
+            ============================================= */
+
+            showHitMarker();
+
+
+            /* =============================================
+               DAMAGE ENEMY
+            ============================================= */
+
+            enemy.health -=
+                damage;
+
+
+            /* =============================================
+               HIT EFFECT
+            ============================================= */
+
+            createHitEffect(
+                hit.point
+            );
+
+
+            /* =============================================
+               ENEMY DEATH
+            ============================================= */
+
+            if (
+                enemy.health <= 0
+            ) {
+
+                killEnemy(
+                    enemy
+                );
+
+            }
+
+            else {
+
+                /* =========================================
+                   HIT SCORE
+                   Small reward for damaging enemy
+                ========================================= */
+
+                score += 10;
+
+                showScorePopup(
+                    "+10"
+                );
+
+                updateHUD();
+
+            }
+
+
+            return true;
+
+        }
+
+    }
+
+
+    return false;
+
+}
+
+
+/* =====================================================
+   CHECK BULLET → PLAYER HIT
+===================================================== */
+
+function checkBulletPlayerHit(
+    bulletRay
+) {
+
+    /* =================================================
+       PLAYER HITBOX
+    ================================================= */
+
+    let playerPosition =
+        player.position.clone();
+
+
+    /* =================================================
+       SIMPLE PLAYER RADIUS
+    ================================================= */
+
+    let playerRadius =
+        1.0;
+
+
+    /* =================================================
+       FIND CLOSEST POINT ON RAY
+    ================================================= */
+
+    let rayOrigin =
+        bulletRay.ray.origin;
+
+    let rayDirection =
+        bulletRay.ray.direction;
+
+
+    let toPlayer =
+        playerPosition
+            .clone()
+            .sub(
+                rayOrigin
+            );
+
+
+    let distanceAlongRay =
+        toPlayer.dot(
+            rayDirection
+        );
+
+
+    /* =================================================
+       PLAYER BEHIND BULLET
+    ================================================= */
+
+    if (
+        distanceAlongRay < 0
+    ) {
+
+        return false;
+
+    }
+
+
+    /* =================================================
+       FIND CLOSEST POINT
+    ================================================= */
+
+    let closestPoint =
+        rayOrigin
+            .clone()
+            .add(
+                rayDirection
+                    .clone()
+                    .multiplyScalar(
+                        distanceAlongRay
+                    )
+            );
+
+
+    /* =================================================
+       DISTANCE FROM PLAYER
+    ================================================= */
+
+    let distance =
+        closestPoint.distanceTo(
+            playerPosition
+        );
+
+
+    /* =================================================
+       PLAYER HIT
+    ================================================= */
+
+    if (
+        distance <=
+        playerRadius
+    ) {
+
+        takeDamage(
+            5
+        );
+
+        return true;
+
+    }
+
+
+    return false;
+
+}
+
+
+/* =====================================================
+   BULLET HIT EFFECT
+===================================================== */
+
+function createHitEffect(
+    position
+) {
+
+    let geometry =
+        new THREE.SphereGeometry(
+            0.18,
+            6,
+            6
+        );
+
+    let material =
+        new THREE.MeshBasicMaterial({
+
+            color:
+                0xffff00,
+
+            transparent:
+                true,
+
+            opacity:
+                1
+
+        });
+
+    let effect =
+        new THREE.Mesh(
+            geometry,
+            material
+        );
+
+    effect.position.copy(
+        position
+    );
+
+    scene.add(
+        effect
+    );
+
+
+    /* =================================================
+       SIMPLE EFFECT ANIMATION
+    ================================================= */
+
+    let startTime =
+        performance.now();
+
+
+    function animateHitEffect() {
+
+        let elapsed =
+            performance.now() -
+            startTime;
+
+
+        let progress =
+            elapsed / 150;
+
+
+        if (
+            progress >= 1
+        ) {
+
+            scene.remove(
+                effect
+            );
+
+            return;
+
+        }
+
+
+        effect.scale.setScalar(
+            1 +
+            progress * 3
+        );
+
+        effect.material.opacity =
+            1 -
+            progress;
+
+
+        requestAnimationFrame(
+            animateHitEffect
+        );
+
+    }
+
+
+    animateHitEffect();
+
+}
+
+
+/* =====================================================
+   REMOVE PROJECTILE
+===================================================== */
+
+function removeProjectile(
+    index
+) {
+
+    if (
+        index < 0 ||
+        index >=
+        projectiles.length
+    ) {
+
+        return;
+
+    }
+
 
     let projectile =
         projectiles[index];
 
-    scene.remove(projectile);
+
+    if (
+        projectile
+    ) {
+
+        scene.remove(
+            projectile
+        );
+
+
+        /* =================================================
+           CLEAN UP GEOMETRY
+        ================================================= */
+
+        if (
+            projectile.geometry
+        ) {
+
+            projectile.geometry.dispose();
+
+        }
+
+
+        /* =================================================
+           CLEAN UP MATERIAL
+        ================================================= */
+
+        if (
+            projectile.material
+        ) {
+
+            projectile.material.dispose();
+
+        }
+
+    }
+
 
     projectiles.splice(
         index,
@@ -2437,6 +3224,7 @@ function removeProjectile(index) {
     );
 
 }
+
 
 /* =====================================================
    RELOAD
@@ -2447,15 +3235,21 @@ function reload() {
     let weapon =
         weapons[currentWeapon];
 
+
     let needed =
         weapon.magazineSize -
         weapon.ammo;
 
+
     if (
         needed <= 0 ||
         weapon.reserve <= 0
-    )
+    ) {
+
         return;
+
+    }
+
 
     let amount =
         Math.min(
@@ -2463,49 +3257,77 @@ function reload() {
             weapon.reserve
         );
 
-    weapon.ammo += amount;
 
-    weapon.reserve -= amount;
+    weapon.ammo +=
+        amount;
+
+
+    weapon.reserve -=
+        amount;
+
 
     updateWeaponHUD();
 
 }
 
+
 /* =====================================================
    ENEMY AI
 ===================================================== */
 
-function updateEnemies(delta) {
+function updateEnemies(
+    delta
+) {
 
-    if (gameOver)
+    if (
+        gameOver
+    ) {
+
         return;
+
+    }
+
 
     for (
         let enemy of
         enemies
     ) {
 
-        if (!enemy.alive)
+        if (
+            !enemy.alive
+        ) {
+
             continue;
+
+        }
+
 
         let direction =
             new THREE.Vector3();
+
 
         direction.subVectors(
             player.position,
             enemy.position
         );
 
+
         direction.y = 0;
+
 
         let distance =
             direction.length();
 
+
         if (
             distance >
             enemy.detectionRange
-        )
+        ) {
+
             continue;
+
+        }
+
 
         enemy.lookAt(
             player.position.x,
@@ -2513,9 +3335,13 @@ function updateEnemies(delta) {
             player.position.z
         );
 
-        if (distance > 18) {
+
+        if (
+            distance > 18
+        ) {
 
             direction.normalize();
+
 
             let movement =
                 direction.clone()
@@ -2524,14 +3350,17 @@ function updateEnemies(delta) {
                         delta
                     );
 
+
             let oldPosition =
                 enemy.position.clone();
+
 
             moveWithCollision(
                 enemy,
                 movement,
                 ENEMY_RADIUS
             );
+
 
             if (
                 enemy.position.distanceTo(
@@ -2546,6 +3375,7 @@ function updateEnemies(delta) {
                         0
                     );
 
+
                 let slideZ =
                     new THREE.Vector3(
                         0,
@@ -2553,11 +3383,13 @@ function updateEnemies(delta) {
                         movement.z
                     );
 
+
                 moveWithCollision(
                     enemy,
                     slideX,
                     ENEMY_RADIUS
                 );
+
 
                 moveWithCollision(
                     enemy,
@@ -2567,23 +3399,31 @@ function updateEnemies(delta) {
 
             }
 
+
             enemy.walkTime +=
                 delta * 8;
+
 
             enemy.leftLeg.rotation.x =
                 Math.sin(
                     enemy.walkTime
-                ) * 0.5;
+                ) *
+                0.5;
+
 
             enemy.rightLeg.rotation.x =
                 Math.sin(
                     enemy.walkTime +
                     Math.PI
-                ) * 0.5;
+                ) *
+                0.5;
 
         }
 
-        enemy.shootTimer -= delta;
+
+        enemy.shootTimer -=
+            delta;
+
 
         if (
             distance <
@@ -2593,9 +3433,13 @@ function updateEnemies(delta) {
 
             enemy.shootTimer =
                 1.5 +
-                Math.random() * 1.5;
+                Math.random() *
+                1.5;
 
-            enemyShoot(enemy);
+
+            enemyShoot(
+                enemy
+            );
 
         }
 
@@ -2603,54 +3447,85 @@ function updateEnemies(delta) {
 
 }
 
+
 /* =====================================================
    ENEMY SHOOT
 ===================================================== */
 
-function enemyShoot(enemy) {
+function enemyShoot(
+    enemy
+) {
 
-    if (gameOver)
+    if (
+        gameOver
+    ) {
+
         return;
+
+    }
+
 
     let start =
         enemy.position.clone();
 
+
     start.y += 2;
+
 
     let target =
         player.position.clone();
 
+
     target.y -= 0.3;
+
 
     let direction =
         new THREE.Vector3();
+
 
     direction.subVectors(
         target,
         start
     );
 
+
     direction.normalize();
+
+
+    /* =================================================
+       ENEMY AIM ERROR
+    ================================================= */
 
     direction.x +=
         (
-            Math.random() - 0.5
+            Math.random() -
+            0.5
         ) *
         0.035;
+
 
     direction.y +=
         (
-            Math.random() - 0.5
+            Math.random() -
+            0.5
         ) *
         0.035;
+
 
     direction.z +=
         (
-            Math.random() - 0.5
+            Math.random() -
+            0.5
         ) *
         0.035;
 
+
     direction.normalize();
+
+
+    /* =================================================
+       WALL CHECK BEFORE FIRING
+    ================================================= */
 
     let raycaster =
         new THREE.Raycaster(
@@ -2658,7 +3533,10 @@ function enemyShoot(enemy) {
             direction
         );
 
-    raycaster.far = 150;
+
+    raycaster.far =
+        150;
+
 
     let wallHits =
         raycaster.intersectObjects(
@@ -2666,10 +3544,12 @@ function enemyShoot(enemy) {
             false
         );
 
+
     let playerDistance =
         start.distanceTo(
             target
         );
+
 
     if (
         wallHits.length > 0 &&
@@ -2681,27 +3561,50 @@ function enemyShoot(enemy) {
 
     }
 
+
+    /* =================================================
+       CREATE ENEMY PROJECTILE
+    ================================================= */
+
     createProjectile(
+
         start,
+
         direction,
+
         false,
+
         5,
+
         35,
+
         5
+
     );
 
 }
 
+
 /* =====================================================
-   DAMAGE
+   DAMAGE PLAYER
 ===================================================== */
 
-function takeDamage(damage) {
+function takeDamage(
+    damage
+) {
 
-    if (gameOver)
+    if (
+        gameOver
+    ) {
+
         return;
 
-    health -= damage;
+    }
+
+
+    health -=
+        damage;
+
 
     health =
         Math.max(
@@ -2709,31 +3612,41 @@ function takeDamage(damage) {
             health
         );
 
+
     updateHUD();
+
 
     let flash =
         document.getElementById(
             "damageFlash"
         );
 
-    flash.style.opacity = 1;
+
+    flash.style.opacity =
+        1;
+
 
     setTimeout(
         function() {
 
-            flash.style.opacity = 0;
+            flash.style.opacity =
+                0;
 
         },
         120
     );
 
-    if (health <= 0) {
+
+    if (
+        health <= 0
+    ) {
 
         loseGame();
 
     }
 
 }
+
 
 /* =====================================================
    HUD
@@ -2746,27 +3659,38 @@ function updateHUD() {
     ).textContent =
         score;
 
+
     document.getElementById(
         "kills"
     ).textContent =
         kills;
+
 
     document.getElementById(
         "enemyCount"
     ).textContent =
 
         enemies.filter(
-            e => e.alive
+            e =>
+                e.alive
         ).length;
+
 
     document.getElementById(
         "health"
     ).style.width =
-        health + "%";
+        health +
+        "%";
+
 
     updateWeaponHUD();
 
 }
+
+
+/* =====================================================
+   WAVE HUD
+===================================================== */
 
 function updateWaveHUD() {
 
@@ -2777,9 +3701,13 @@ function updateWaveHUD() {
 
 }
 
+
 /* =====================================================
    HIT MARKER
 ===================================================== */
+
+let hitMarkerTimer = null;
+
 
 function showHitMarker() {
 
@@ -2788,18 +3716,35 @@ function showHitMarker() {
             "hitMarker"
         );
 
-    marker.style.opacity = 1;
 
-    setTimeout(
-        function() {
+    marker.style.opacity =
+        1;
 
-            marker.style.opacity = 0;
 
-        },
-        100
-    );
+    if (
+        hitMarkerTimer
+    ) {
+
+        clearTimeout(
+            hitMarkerTimer
+        );
+
+    }
+
+
+    hitMarkerTimer =
+        setTimeout(
+            function() {
+
+                marker.style.opacity =
+                    0;
+
+            },
+            100
+        );
 
 }
+
 
 /* =====================================================
    GAME OVER
@@ -2807,17 +3752,28 @@ function showHitMarker() {
 
 function loseGame() {
 
-    if (gameOver)
+    if (
+        gameOver
+    ) {
+
         return;
 
-    gameOver = true;
+    }
 
-    isFiring = false;
+
+    gameOver =
+        true;
+
+
+    isFiring =
+        false;
+
 
     document.getElementById(
         "messageText"
     ).textContent =
         "GAME OVER";
+
 
     document.getElementById(
         "finalScore"
@@ -2825,12 +3781,14 @@ function loseGame() {
         "FINAL SCORE: " +
         score;
 
+
     document.getElementById(
         "message"
     ).style.display =
         "block";
 
 }
+
 
 /* =====================================================
    RESIZE
@@ -2842,7 +3800,9 @@ function resize() {
         window.innerWidth /
         window.innerHeight;
 
+
     camera.updateProjectionMatrix();
+
 
     renderer.setSize(
         window.innerWidth,
@@ -2851,6 +3811,7 @@ function resize() {
 
 }
 
+
 /* =====================================================
    GAME LOOP
 ===================================================== */
@@ -2858,28 +3819,40 @@ function resize() {
 let lastTime =
     performance.now();
 
+
 function animate() {
 
     requestAnimationFrame(
         animate
     );
 
+
     let now =
         performance.now();
+
 
     let delta =
         (
             now -
             lastTime
-        ) / 1000;
+        ) /
+        1000;
 
-    lastTime = now;
+
+    lastTime =
+        now;
+
 
     delta =
         Math.min(
             delta,
             0.1
         );
+
+
+    /* =================================================
+       AUTOMATIC WEAPONS
+    ================================================= */
 
     if (
         isFiring &&
@@ -2891,17 +3864,62 @@ function animate() {
 
     }
 
-    movePlayer(delta);
 
-    updateEnemies(delta);
+    /* =================================================
+       PLAYER
+    ================================================= */
 
-    updateProjectiles(delta);
+    movePlayer(
+        delta
+    );
 
-    updateWaveSystem(delta);
 
-    updateGun(delta);
+    /* =================================================
+       ENEMIES
+    ================================================= */
+
+    updateEnemies(
+        delta
+    );
+
+
+    /* =================================================
+       PROJECTILES
+    ================================================= */
+
+    updateProjectiles(
+        delta
+    );
+
+
+    /* =================================================
+       WAVES
+    ================================================= */
+
+    updateWaveSystem(
+        delta
+    );
+
+
+    /* =================================================
+       GUN
+    ================================================= */
+
+    updateGun(
+        delta
+    );
+
+
+    /* =================================================
+       HUD
+    ================================================= */
 
     updateHUD();
+
+
+    /* =================================================
+       RENDER
+    ================================================= */
 
     renderer.render(
         scene,
@@ -2910,8 +3928,9 @@ function animate() {
 
 }
 
+
 /* =====================================================
-   START
+   START GAME
 ===================================================== */
 
 startGame();
@@ -2920,4 +3939,3 @@ startGame();
 
 </body>
 </html>
-```
