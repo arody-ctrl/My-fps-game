@@ -351,6 +351,7 @@ function moveWithCollision(
 
 function randomAirdropPosition(
     walls,
+    halfExtent,
     random,
     attempts
 ){
@@ -359,10 +360,12 @@ function randomAirdropPosition(
 
     var tries=attempts||40;
 
+    var extent=halfExtent||100;
+
     for(var i=0;i<tries;i++){
 
-        var x=-100+rng()*200;
-        var z=-100+rng()*200;
+        var x=-extent+rng()*extent*2;
+        var z=-extent+rng()*extent*2;
 
         if(
             !circleIntersectsWall(

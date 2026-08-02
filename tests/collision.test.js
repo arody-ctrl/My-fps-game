@@ -107,11 +107,18 @@ describe("moveWithCollision", () => {
 
 describe("randomAirdropPosition", () => {
   it("maps the random source onto the playable area", () => {
-    const random = () => 0.5;
+    expect(randomAirdropPosition([], 100, () => 0.5)).toEqual({ x: 0, z: 0 });
+    expect(randomAirdropPosition([], 100, () => 1)).toEqual({ x: 100, z: 100 });
+    expect(randomAirdropPosition([], 100, () => 0)).toEqual({ x: -100, z: -100 });
+  });
 
-    expect(randomAirdropPosition([], random)).toEqual({ x: 0, z: 0 });
-    expect(randomAirdropPosition([], () => 1)).toEqual({ x: 100, z: 100 });
-    expect(randomAirdropPosition([], () => 0)).toEqual({ x: -100, z: -100 });
+  it("spreads over the whole map when given a larger half extent", () => {
+    expect(randomAirdropPosition([], 260, () => 1)).toEqual({ x: 260, z: 260 });
+    expect(randomAirdropPosition([], 260, () => 0.25)).toEqual({ x: -130, z: -130 });
+  });
+
+  it("defaults to a half extent of 100", () => {
+    expect(randomAirdropPosition([], undefined, () => 1)).toEqual({ x: 100, z: 100 });
   });
 
   it("retries until it finds a spot clear of walls", () => {
@@ -119,7 +126,7 @@ describe("randomAirdropPosition", () => {
     const values = [1, 1, 0.75, 0.75];
     const random = () => values.shift();
 
-    expect(randomAirdropPosition(walls, random)).toEqual({ x: 50, z: 50 });
+    expect(randomAirdropPosition(walls, 100, random)).toEqual({ x: 50, z: 50 });
   });
 
   it("falls back to the map centre when every attempt is blocked", () => {
@@ -128,6 +135,7 @@ describe("randomAirdropPosition", () => {
 
     const position = randomAirdropPosition(
       walls,
+      100,
       () => {
         calls += 1;
         return 0.5;

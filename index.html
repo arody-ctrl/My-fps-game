@@ -155,6 +155,48 @@ canvas{
     background:rgba(255,255,255,.75);
 }
 
+/* MIL DOT TICKS */
+#scopeTicks{
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:min(60vw,60vh);
+    height:min(60vw,60vh);
+    transform:translate(-50%,-50%);
+}
+
+#scopeTicks::before{
+    content:"";
+    position:absolute;
+    left:0;
+    top:50%;
+    width:100%;
+    height:12px;
+    transform:translateY(-50%);
+    background:
+        repeating-linear-gradient(
+            to right,
+            rgba(255,255,255,.85) 0 2px,
+            transparent 2px 6.25%
+        );
+}
+
+#scopeTicks::after{
+    content:"";
+    position:absolute;
+    left:50%;
+    top:0;
+    width:12px;
+    height:100%;
+    transform:translateX(-50%);
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            rgba(255,255,255,.85) 0 2px,
+            transparent 2px 6.25%
+        );
+}
+
 /* HIT */
 #hitMarker{
     position:fixed;
@@ -412,6 +454,7 @@ canvas{
 
 <div id="scopeOverlay">
     <div id="scopeCenter"></div>
+    <div id="scopeTicks"></div>
 </div>
 
 <div id="hitMarker">X</div>
@@ -1324,36 +1367,51 @@ const MAX_ACTIVE_ENEMIES=15;
    MAP
 ===================================================== */
 
-const MAP_SIZE=250;
+const MAP_SIZE=600;
+const MAP_EDGE=MAP_SIZE/2;
 const PLAYER_RADIUS=1.2;
 const ENEMY_RADIUS=1.4;
 
-const spawnPoints=[
+/*
+   CITY BLOCK GRID
+   Buildings sit on the grid nodes,
+   the gaps between them are streets.
+*/
 
-    [-110,-110],
-    [-80,-110],
-    [-40,-110],
-    [0,-110],
-    [40,-110],
-    [80,-110],
-    [110,-110],
+const BLOCK_SPACING=90;
+const STREET_HALF_WIDTH=14;
 
-    [-110,110],
-    [-80,110],
-    [-40,110],
-    [0,110],
-    [40,110],
-    [80,110],
-    [110,110],
+const spawnPoints=buildSpawnPoints();
 
-    [-110,-60],
-    [110,-60],
-    [-110,0],
-    [110,0],
-    [-110,60],
-    [110,60]
+function buildSpawnPoints(){
 
-];
+    let points=[];
+
+    for(
+        let x=-MAP_EDGE+40;
+        x<=MAP_EDGE-40;
+        x+=BLOCK_SPACING
+    ){
+
+        points.push([x,-MAP_EDGE+40]);
+        points.push([x,MAP_EDGE-40]);
+
+    }
+
+    for(
+        let z=-MAP_EDGE+130;
+        z<=MAP_EDGE-130;
+        z+=BLOCK_SPACING
+    ){
+
+        points.push([-MAP_EDGE+40,z]);
+        points.push([MAP_EDGE-40,z]);
+
+    }
+
+    return points;
+
+}
 
 /* =====================================================
    CONTROLS
@@ -1423,7 +1481,8 @@ function hideAirdropInfo(){
 function randomAirdropPosition(){
 
     return GameCore.randomAirdropPosition(
-        walls
+        walls,
+        MAP_EDGE-40
     );
 
 }
@@ -1910,27 +1969,61 @@ function startGame(){
 
 function createGround(){
 
-    let geometry=
-        new THREE.PlaneGeometry(
-            MAP_SIZE,
-            MAP_SIZE
-        );
-
-    let material=
-        new THREE.MeshBasicMaterial({
-            color:0x228B22
-        });
-
     let ground=
         new THREE.Mesh(
-            geometry,
-            material
+            new THREE.PlaneGeometry(
+                MAP_SIZE,
+                MAP_SIZE
+            ),
+            new THREE.MeshStandardMaterial({
+                color:0x3a3a3f,
+                roughness:1
+            })
         );
 
     ground.rotation.x=
         -Math.PI/2;
 
     scene.add(ground);
+
+    /* ROAD MARKINGS ALONG THE STREET GRID */
+
+    let stripeMaterial=
+        new THREE.MeshBasicMaterial({
+            color:0xdddd66
+        });
+
+    for(
+        let offset=-MAP_EDGE+BLOCK_SPACING/2;
+        offset<MAP_EDGE;
+        offset+=BLOCK_SPACING
+    ){
+
+        for(let axis=0;axis<2;axis++){
+
+            let stripe=
+                new THREE.Mesh(
+                    new THREE.PlaneGeometry(
+                        axis===0?MAP_SIZE:1.2,
+                        axis===0?1.2:MAP_SIZE
+                    ),
+                    stripeMaterial
+                );
+
+            stripe.rotation.x=
+                -Math.PI/2;
+
+            stripe.position.set(
+                axis===0?0:offset,
+                .02,
+                axis===0?offset:0
+            );
+
+            scene.add(stripe);
+
+        }
+
+    }
 
 }
 
@@ -1989,51 +2082,221 @@ function createWall(
    MAP
 ===================================================== */
 
+let windowTexture;
+
+function buildingTexture(){
+
+    if(windowTexture)return windowTexture;
+
+    let canvas=
+        document.createElement("canvas");
+
+    canvas.width=64;
+    canvas.height=64;
+
+    let context=
+        canvas.getContext("2d");
+
+    context.fillStyle="#2b3240";
+    context.fillRect(0,0,64,64);
+
+    for(let row=0;row<8;row++){
+
+        for(let column=0;column<8;column++){
+
+            let lit=Math.random()<.35;
+
+            context.fillStyle=
+                lit?"#ffe9a8":"#1a1f28";
+
+            context.fillRect(
+                column*8+2,
+                row*8+2,
+                4,
+                5
+            );
+
+        }
+
+    }
+
+    windowTexture=
+        new THREE.CanvasTexture(canvas);
+
+    windowTexture.wrapS=
+        THREE.RepeatWrapping;
+
+    windowTexture.wrapT=
+        THREE.RepeatWrapping;
+
+    return windowTexture;
+
+}
+
+/*
+   A skyscraper is a tall wall, so it
+   collides through the same AABB test.
+*/
+
+function createBuilding(
+    x,
+    z,
+    width,
+    depth,
+    height
+){
+
+    let building=
+        createWall(
+            x,
+            z,
+            width,
+            depth,
+            height
+        );
+
+    let texture=
+        buildingTexture().clone();
+
+    texture.needsUpdate=true;
+
+    texture.repeat.set(
+        Math.max(1,Math.round(width/6)),
+        Math.max(1,Math.round(height/6))
+    );
+
+    building.material=
+        new THREE.MeshStandardMaterial({
+            map:texture,
+            color:new THREE.Color().setHSL(
+                .58,
+                .1,
+                .45+Math.random()*.25
+            ),
+            roughness:.75,
+            metalness:.15
+        });
+
+    /* ROOF CAP */
+
+    let roof=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                width*1.05,
+                2,
+                depth*1.05
+            ),
+            new THREE.MeshStandardMaterial({
+                color:0x22262e,
+                roughness:.9
+            })
+        );
+
+    roof.position.set(
+        x,
+        height+1,
+        z
+    );
+
+    scene.add(roof);
+
+    return building;
+
+}
+
 function createMap(){
 
+    /* MAP BOUNDARY */
+
     createWall(
-        0,-125,250,2
+        0,-MAP_EDGE,MAP_SIZE,4,40
     );
 
     createWall(
-        0,125,250,2
+        0,MAP_EDGE,MAP_SIZE,4,40
     );
 
     createWall(
-        -125,0,2,250
+        -MAP_EDGE,0,4,MAP_SIZE,40
     );
 
     createWall(
-        125,0,2,250
+        MAP_EDGE,0,4,MAP_SIZE,40
     );
 
-    createWall(
-        -40,0,8,30
-    );
+    /* CITY BLOCKS */
 
-    createWall(
-        40,-20,8,30
-    );
+    for(
+        let x=-MAP_EDGE+BLOCK_SPACING;
+        x<=MAP_EDGE-BLOCK_SPACING;
+        x+=BLOCK_SPACING
+    ){
 
-    createWall(
-        0,-50,35,8
-    );
+        for(
+            let z=-MAP_EDGE+BLOCK_SPACING;
+            z<=MAP_EDGE-BLOCK_SPACING;
+            z+=BLOCK_SPACING
+        ){
 
-    createWall(
-        -60,-60,15,15
-    );
+            /* KEEP THE SPAWN AREA CLEAR */
 
-    createWall(
-        60,50,15,15
-    );
+            if(
+                Math.hypot(x,z)<50
+            )continue;
 
-    createWall(
-        -70,60,25,6
-    );
+            let footprint=
+                BLOCK_SPACING-
+                STREET_HALF_WIDTH*2;
 
-    createWall(
-        70,-60,25,6
-    );
+            let width=
+                footprint*
+                (.6+Math.random()*.4);
+
+            let depth=
+                footprint*
+                (.6+Math.random()*.4);
+
+            let height=
+                25+Math.random()*95;
+
+            createBuilding(
+                x+(Math.random()-.5)*8,
+                z+(Math.random()-.5)*8,
+                width,
+                depth,
+                height
+            );
+
+        }
+
+    }
+
+    /* LOW COVER IN THE STREETS */
+
+    for(let i=0;i<40;i++){
+
+        let x=
+            -MAP_EDGE+20+
+            Math.random()*(MAP_SIZE-40);
+
+        let z=
+            -MAP_EDGE+20+
+            Math.random()*(MAP_SIZE-40);
+
+        if(
+            Math.hypot(x,z)<25||
+            circleIntersectsWall(x,z,8)
+        )continue;
+
+        createWall(
+            x,
+            z,
+            6+Math.random()*8,
+            6+Math.random()*8,
+            3
+        );
+
+    }
 
 }
 
@@ -2243,6 +2506,107 @@ function spawnWaveEnemy(){
    ENEMY
 ===================================================== */
 
+function robotMaterial(
+    color,
+    metalness
+){
+
+    return new THREE.MeshStandardMaterial({
+        color:color,
+        metalness:metalness===undefined?
+            .75:
+            metalness,
+        roughness:.35
+    });
+
+}
+
+/*
+   Builds a rifle held in both hands,
+   already oriented down the robot's
+   forward axis (-Z).
+*/
+
+function createEnemyRifle(){
+
+    let rifle=
+        new THREE.Group();
+
+    let bodyMaterial=
+        robotMaterial(0x1b1b20,.6);
+
+    let receiver=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .28,
+                .3,
+                1.5
+            ),
+            bodyMaterial
+        );
+
+    rifle.add(receiver);
+
+    let barrel=
+        new THREE.Mesh(
+            new THREE.CylinderGeometry(
+                .07,
+                .07,
+                1.2,
+                8
+            ),
+            robotMaterial(0x3a3a42,.9)
+        );
+
+    barrel.rotation.x=
+        Math.PI/2;
+
+    barrel.position.z=-1.3;
+
+    rifle.add(barrel);
+
+    let magazine=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .18,
+                .55,
+                .28
+            ),
+            bodyMaterial
+        );
+
+    magazine.position.set(
+        0,
+        -.4,
+        -.1
+    );
+
+    rifle.add(magazine);
+
+    let stock=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .22,
+                .34,
+                .7
+            ),
+            bodyMaterial
+        );
+
+    stock.position.z=1;
+
+    rifle.add(stock);
+
+    return rifle;
+
+}
+
+/*
+   Humanoid robot.
+   Limbs hang from pivot groups so the
+   walk cycle rotates them at the joint.
+*/
+
 function createEnemy(
     x,
     z
@@ -2251,151 +2615,364 @@ function createEnemy(
     let enemy=
         new THREE.Group();
 
-    let bodyMaterial=
-        new THREE.MeshStandardMaterial({
-            color:0xff3333,
-            metalness:.5,
-            roughness:.5
-        });
+    let plating=
+        robotMaterial(0x9aa3ad,.8);
 
-    let body=
+    let joints=
+        robotMaterial(0x33373d,.9);
+
+    let accent=
+        robotMaterial(0xcc2222,.5);
+
+    /* TORSO */
+
+    let chest=
         new THREE.Mesh(
             new THREE.BoxGeometry(
-                2,
-                2.2,
-                1.5
+                1.5,
+                1.5,
+                .9
             ),
-            bodyMaterial
+            plating
         );
 
-    body.position.y=2.2;
+    chest.position.y=3.5;
 
-    enemy.add(body);
+    enemy.add(chest);
+
+    let core=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .45,
+                .45,
+                .12
+            ),
+            new THREE.MeshBasicMaterial({
+                color:0xff5533
+            })
+        );
+
+    core.position.set(
+        0,
+        3.6,
+        -.5
+    );
+
+    enemy.add(core);
+
+    let waist=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .9,
+                .5,
+                .7
+            ),
+            joints
+        );
+
+    waist.position.y=2.55;
+
+    enemy.add(waist);
+
+    let hips=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                1.25,
+                .6,
+                .8
+            ),
+            plating
+        );
+
+    hips.position.y=2.15;
+
+    enemy.add(hips);
+
+    /* HEAD */
+
+    let neck=
+        new THREE.Mesh(
+            new THREE.CylinderGeometry(
+                .16,
+                .16,
+                .3,
+                8
+            ),
+            joints
+        );
+
+    neck.position.y=4.4;
+
+    enemy.add(neck);
 
     let head=
         new THREE.Mesh(
             new THREE.BoxGeometry(
-                1.5,
-                1.2,
-                1.5
+                .8,
+                .75,
+                .8
             ),
-            new THREE.MeshStandardMaterial({
-                color:0x555555,
-                metalness:.8,
-                roughness:.3
-            })
+            plating
         );
 
-    head.position.y=4;
+    head.position.y=4.85;
 
     enemy.add(head);
 
-    let eyeMaterial=
-        new THREE.MeshBasicMaterial({
-            color:0xffff00
-        });
-
-    let eyeGeometry=
-        new THREE.BoxGeometry(
-            .25,
-            .25,
-            .1
-        );
-
-    let leftEye=
+    let visor=
         new THREE.Mesh(
-            eyeGeometry,
-            eyeMaterial
+            new THREE.BoxGeometry(
+                .62,
+                .22,
+                .1
+            ),
+            new THREE.MeshBasicMaterial({
+                color:0xffdd33
+            })
         );
 
-    leftEye.position.set(
-        -.4,
-        4,
-        -.78
+    visor.position.set(
+        0,
+        4.9,
+        -.42
     );
 
-    let rightEye=
+    enemy.add(visor);
+
+    let antenna=
         new THREE.Mesh(
-            eyeGeometry,
-            eyeMaterial
+            new THREE.CylinderGeometry(
+                .04,
+                .04,
+                .6,
+                6
+            ),
+            accent
         );
 
-    rightEye.position.set(
-        .4,
-        4,
-        -.78
+    antenna.position.set(
+        .28,
+        5.4,
+        .1
     );
 
-    enemy.add(leftEye);
-    enemy.add(rightEye);
+    enemy.add(antenna);
 
-    let legGeometry=
-        new THREE.BoxGeometry(
-            .55,
-            1.7,
-            .55
+    /* SHOULDERS */
+
+    for(let side=-1;side<=1;side+=2){
+
+        let pauldron=
+            new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    .5,
+                    .5,
+                    .8
+                ),
+                accent
+            );
+
+        pauldron.position.set(
+            side*.95,
+            4.05,
+            0
         );
 
-    let leftLeg=
-        new THREE.Mesh(
-            legGeometry,
-            bodyMaterial
-        );
+        enemy.add(pauldron);
 
-    let rightLeg=
-        new THREE.Mesh(
-            legGeometry,
-            bodyMaterial
-        );
+    }
 
-    leftLeg.position.set(
-        -.5,
-        .8,
-        0
-    );
-
-    rightLeg.position.set(
-        .5,
-        .8,
-        0
-    );
-
-    enemy.add(leftLeg);
-    enemy.add(rightLeg);
+    /* ARMS HOLDING THE RIFLE */
 
     let armGeometry=
         new THREE.BoxGeometry(
-            .5,
-            1.8,
-            .5
+            .32,
+            1.1,
+            .32
         );
 
     let leftArm=
-        new THREE.Mesh(
-            armGeometry,
-            bodyMaterial
-        );
-
-    let rightArm=
-        new THREE.Mesh(
-            armGeometry,
-            bodyMaterial
-        );
+        new THREE.Group();
 
     leftArm.position.set(
-        -1.3,
-        2.2,
+        -.95,
+        3.85,
         0
     );
 
-    rightArm.position.set(
-        1.3,
-        2.2,
-        0
+    let leftUpper=
+        new THREE.Mesh(
+            armGeometry,
+            plating
+        );
+
+    leftUpper.position.y=-.55;
+
+    leftArm.add(leftUpper);
+
+    let leftForearm=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .28,
+                .95,
+                .28
+            ),
+            joints
+        );
+
+    leftForearm.position.set(
+        .1,
+        -1.35,
+        -.45
     );
+
+    leftForearm.rotation.x=
+        -Math.PI/3;
+
+    leftArm.add(leftForearm);
 
     enemy.add(leftArm);
+
+    let rightArm=
+        new THREE.Group();
+
+    rightArm.position.set(
+        .95,
+        3.85,
+        0
+    );
+
+    let rightUpper=
+        new THREE.Mesh(
+            armGeometry,
+            plating
+        );
+
+    rightUpper.position.y=-.55;
+
+    rightArm.add(rightUpper);
+
+    let rightForearm=
+        new THREE.Mesh(
+            new THREE.BoxGeometry(
+                .28,
+                .95,
+                .28
+            ),
+            joints
+        );
+
+    rightForearm.position.set(
+        -.1,
+        -1.35,
+        -.45
+    );
+
+    rightForearm.rotation.x=
+        -Math.PI/3;
+
+    rightArm.add(rightForearm);
+
     enemy.add(rightArm);
+
+    let rifle=
+        createEnemyRifle();
+
+    rifle.position.set(
+        .35,
+        3.05,
+        -1
+    );
+
+    enemy.add(rifle);
+
+    /* LEGS */
+
+    let leftLeg=
+        new THREE.Group();
+
+    leftLeg.position.set(
+        -.4,
+        2,
+        0
+    );
+
+    let rightLeg=
+        new THREE.Group();
+
+    rightLeg.position.set(
+        .4,
+        2,
+        0
+    );
+
+    for(
+        let leg of [leftLeg,rightLeg]
+    ){
+
+        let thigh=
+            new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    .45,
+                    1.1,
+                    .45
+                ),
+                plating
+            );
+
+        thigh.position.y=-.55;
+
+        leg.add(thigh);
+
+        let knee=
+            new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    .3,
+                    .25,
+                    .3
+                ),
+                joints
+            );
+
+        knee.position.y=-1.15;
+
+        leg.add(knee);
+
+        let shin=
+            new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    .38,
+                    .85,
+                    .38
+                ),
+                plating
+            );
+
+        shin.position.y=-1.7;
+
+        leg.add(shin);
+
+        let foot=
+            new THREE.Mesh(
+                new THREE.BoxGeometry(
+                    .45,
+                    .25,
+                    .8
+                ),
+                joints
+            );
+
+        foot.position.set(
+            0,
+            -2.05,
+            -.15
+        );
+
+        leg.add(foot);
+
+        enemy.add(leg);
+
+    }
 
     enemy.position.set(
         x,
@@ -2407,8 +2984,8 @@ function createEnemy(
     enemy.maxHealth=100;
     enemy.alive=true;
 
-    enemy.detectionRange=150;
-    enemy.attackRange=60;
+    enemy.detectionRange=260;
+    enemy.attackRange=90;
 
     enemy.moveSpeed=
         1.2+
@@ -2426,6 +3003,12 @@ function createEnemy(
 
     enemy.rightLeg=
         rightLeg;
+
+    enemy.leftArm=
+        leftArm;
+
+    enemy.rightArm=
+        rightArm;
 
     scene.add(enemy);
 
@@ -3895,6 +4478,17 @@ function updateEnemies(
                     Math.PI
                 )*.5;
 
+            enemy.leftArm.rotation.x=
+                Math.sin(
+                    enemy.walkTime+
+                    Math.PI
+                )*.15;
+
+            enemy.rightArm.rotation.x=
+                Math.sin(
+                    enemy.walkTime
+                )*.15;
+
         }
 
         enemy.shootTimer-=
@@ -3934,7 +4528,7 @@ function enemyShoot(
     let start=
         enemy.position.clone();
 
-    start.y+=2;
+    start.y+=3.1;
 
     let target=
         player.position.clone();
@@ -3974,7 +4568,7 @@ function enemyShoot(
             direction
         );
 
-    raycaster.far=150;
+    raycaster.far=280;
 
     let wallHits=
         raycaster.intersectObjects(
