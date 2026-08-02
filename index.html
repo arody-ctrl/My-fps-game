@@ -3693,23 +3693,23 @@ function movePlayer(delta){
 
     }
 
-    player.position.x=
-        Math.max(
-            -300,
-            Math.min(
-                300,
-                player.position.x
-            )
-        );
+player.position.x =
+    Math.max(
+        -MAP_EDGE + PLAYER_RADIUS,
+        Math.min(
+            MAP_EDGE - PLAYER_RADIUS,
+            player.position.x
+        )
+    );
 
-    player.position.z=
-        Math.max(
-            -300,
-            Math.min(
-                300,
-                player.position.z
-            )
-        );
+player.position.z =
+    Math.max(
+        -MAP_EDGE + PLAYER_RADIUS,
+        Math.min(
+            MAP_EDGE - PLAYER_RADIUS,
+            player.position.z
+        )
+    );    
 
 }
 
